@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+#=========================================================================
+# summarize-results [options] <vsrc> <qor-report>
+#=========================================================================
+# Prepares a summary after place and route which includes: the source
+# verilog file, the area, and the cycle time. The source verilog file
+# comes from the make fragment, the area and cycle time come from the QOR
+# report. For the cycle time, the script scans for lines that look like
+# this:
+#
+#  Critical Path Slack:           0.59
+#  Critical Path Clk Period:      1.00
+#
+# and subtracts the first from the second; but there can be multiple
+# timing path groups, so it finds the maximum cycle time in the file.
+#
+#  -h --help     Display this message
+#  -v --verbose  Verbose mode
+#
+# Author : Christopher Batten
+# Date   : February 15, 2015
+#
+
+from __future__ import print_function
+
+import argparse
+import sys
+
+#-------------------------------------------------------------------------
+# Command line processing
+#-------------------------------------------------------------------------
+
+class ArgumentParserWithCustomError(argparse.ArgumentParser):
+  def error( self, msg = "" ):
+    if ( msg ): print("\n ERROR: %s" % msg)
+    print("")
+    file = open( sys.argv[0] )
+    for ( lineno, line ) in enumerate( file ):
+      if ( line[0] != '#' ): sys.exit(msg != "")
+      if ( (lineno == 2) or (lineno >= 4) ): print( line[1:].rstrip("\n") )
+
+def parse_cmdline():
+  p = ArgumentParserWithCustomError( add_help=False )
+
+  # Standard command line arguments
+
+  p.add_argument( "-v", "--verbose", action="store_true" )
+  p.add_argument( "-h", "--help",    action="store_true" )
+
+  # Additional commane line arguments
+
+  p.add_argument( "vsrc" )
+  p.add_argument( "qor_report" )
+
+  opts = p.parse_args()
+  if opts.help: p.error()
+  return opts
+
+#-------------------------------------------------------------------------
+# Main
+#-------------------------------------------------------------------------
+
+def main():
+  opts = parse_cmdline()
+
+  # Results
+
+  vsrc       = opts.vsrc
+  area       = None
+  slack      = None
+  constraint = None
+  cycle_time = None
+
+  # Then scan through QOR file for area and cycle time
+
+  slack_temp      = 0.0
+  constraint_temp = 0.0
+  for line in open( opts.qor_report ):
+
+    line = line.strip()
+
+    if line.startswith("Critical Path Slack:"):
+      slack_temp = float(line.split(':')[1])
+
+    elif line.startswith("Critical Path Clk Period:"):
+      constraint_temp = float(line.split(':')[1])
+      cycle_time_temp = constraint_temp - slack_temp
+      if cycle_time == None or cycle_time_temp > cycle_time:
+        cycle_time = cycle_time_temp
+        constraint = constraint_temp
+        slack      = slack_temp
+
+    elif line.startswith("Design Area:"):
+      area = int(round(float(line.split(':')[1])))
+
+  # All done scanning, print summary
+
+  print(
+"""\
+#=========================================================================
+# Post-Place-and-Route Results
+#=========================================================================
+# The area and cycle time come from IC Compiler.
+
+  vsrc       = {vsrc}
+  area       = {area} # um^2
+  constraint = {constraint} # ns
+  slack      = {slack} # ns
+  cycle_time = {cycle_time} # ns
+\
+""".format(**locals()))
+
+main()
+

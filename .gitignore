@@ -1,0 +1,50 @@
+#=========================================================================
+# Git Ignore Files
+#=========================================================================
+# We explicitly ignore a default build directory, the autoconf generated
+# autom4te.cache directory, and automatically generated python files.
+# This makes it easy to do a clean build under the source directory and
+# still have it appear clean to git.
+
+.\#*
+scripts/work
+build*/
+autom4te.cache/
+__pycache__/
+*.py[cod]
+.DS_Store
+.cache/
+*~
+
+asic/dc-syn/current-dc
+
+asic/icc-par/current-icc
+asic/icc-par/current-iccdp
+asic/icc-par/command.log
+asic/icc-par/icc_output.txt
+
+asic/pt-pwr/current-pt
+
+*.bak
+asic/cacti-mc/SRAM_*/
+asic/cacti-mc/*.db
+asic/cacti-mc/*.lef
+asic/cacti-mc/*.lib
+asic/cacti-mc/*.mw
+asic/dc-syn/alib/
+
+asic/vcs-postsyn/*.vcd
+asic/vcs-postsyn/csrc/
+asic/vcs-postsyn/sdfAnnotateInfo
+asic/vcs-postsyn/simv_*
+asic/vcs-postsyn/testbench.v
+asic/vcs-postsyn/testbench_TOP_v.v
+asic/vcs-postsyn/ucli.key
+
+asic/vcs-postpar/*.vcd
+asic/vcs-postpar/csrc/
+asic/vcs-postpar/sdfAnnotateInfo
+asic/vcs-postpar/simv_*
+asic/vcs-postpar/testbench.v
+asic/vcs-postpar/testbench_TOP_v.v
+asic/vcs-postpar/ucli.key
