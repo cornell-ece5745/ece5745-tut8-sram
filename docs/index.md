@@ -197,7 +197,7 @@ memory generator.
 
 ```
  % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
- % klayout -l $STDCELLS/cells.lyp SRAM_64x64_1P.gds
+ % klayout -l $STDCELLS_DIR/klayout.lyp SRAM_64x64_1P.gds
 ```
 
 The following figure shows the layout for the SRAM macro. In Klayout, you
@@ -910,9 +910,10 @@ SRAM macro.
 ```
  % mkdir -p $TOPDIR/asic/dc-syn/build-dc-manual
  % cd $TOPDIR/asic/dc-syn/build-dc-manual
+ % dc_shell-xg-t
 
- dc_shell> set_app_var target_library "$env(STDCELLS_DIR)/cells.db ../../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/cells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> set_app_var target_library "$env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
  dc_shell> analyze -format sverilog ../../../sim/build/SramValRdyRTL_blackbox.v
  dc_shell> elaborate SramValRdyRTL
  dc_shell> check_design
@@ -944,19 +945,20 @@ cells, and then automatically route everything together.
 ```
  % mkdir -p $TOPDIR/asic/icc-par/build-icc-manual
  % cd $TOPDIR/asic/icc-par/build-icc-manual
+ % icc_shell -gui
 
- icc_shell> set_app_var target_library "$env(STDCELLS_DIR)/cells.db ../../cacti-mc/SRAM_64x64_1P.db"
- icc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/cells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ icc_shell> set_app_var target_library "$env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ icc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
 
  icc_shell> create_mw_lib -open \
-    -tech                 "$env(STDCELLS_DIR)/cells.tf" \
-    -mw_reference_library "$env(STDCELLS_DIR)/cells.fr ../../cacti-mc/SRAM_64x64_1P.mw" \
+    -tech                 "$env(STDCELLS_DIR)/rtk-tech.tf" \
+    -mw_reference_library "$env(STDCELLS_DIR)/stdcells.mwlib ../../cacti-mc/SRAM_64x64_1P.mw" \
     "LIB"
 
  icc_shell> set_tlu_plus_files \
-    -max_tluplus  "$env(STDCELLS_DIR)/cells-max.tluplus" \
-    -min_tluplus  "$env(STDCELLS_DIR)/cells-min.tluplus" \
-    -tech2itf_map "$env(STDCELLS_DIR)/tech2itf.map"
+    -max_tluplus  "$env(STDCELLS_DIR)/rtk-max.tluplus" \
+    -min_tluplus  "$env(STDCELLS_DIR)/rtk-min.tluplus" \
+    -tech2itf_map "$env(STDCELLS_DIR)/rtk-tluplus.map"
 
  icc_shell> import_designs -format verilog "../../dc-syn/build-dc-manual/post-synth.v"
  icc_shell> create_clock clk -name ideal_clock1 -period 1
@@ -974,6 +976,13 @@ macro into the floorplan.
 
 ```
  icc_shell> create_fp_placement
+```
+
+We need to fix the location of the SRAM so that the rest of the flow can
+rely on it not moving. We do that with the following command.
+
+```
+ icc_shell> set_dont_touch_placement [all_macro_cells]
 ```
 
 Use the “zoom to fit” button in the toolbar to focus on the square

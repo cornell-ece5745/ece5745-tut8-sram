@@ -7,9 +7,6 @@
 # your gate-level verilog netlist into a piece of silicon.
 #
 
-# UCB_VLSI_HOME = /research/brg/install/bare-pkgs/noarch
-# UCB_STDCELLS = synopsys-90nm/toolflow
-
 include ../Makefrag
 
 # Because we now only support the PyMTL flow, we can just generate these
@@ -64,10 +61,10 @@ cur_build_icc_dir       := current-icc
 reports_dir             := reports
 results_dir             := results
 log_dir                 := log
-techfile_dir            := $(cells_dir)
-db_cells_dir            := $(cells_dir)
-mw_cells_dir            := $(cells_dir)
-tluplus_cells_dir       := $(cells_dir)
+techfile_dir            := $(adk_dir)
+db_cells_dir            := $(adk_dir)
+mw_cells_dir            := $(adk_dir)
+tluplus_cells_dir       := $(adk_dir)
 
 dc_dir                  := ../dc-syn/current-dc/$(results_dir)
 dc_ddc                  := $(dc_dir)/$(toplevel).mapped.ddc
@@ -123,18 +120,18 @@ outputs_misc_tcl        := rm_icc_zrt_scripts/find_regs.tcl
 vars = \
 	set DESIGN_NAME                 "$(toplevel)";\n \
 	set ADDITIONAL_SEARCH_PATH      "$(db_cells_dir) $(mw_cells_dir) ../../cacti-mc ../$(dc_dir)";\n \
-	set TARGET_LIBRARY_FILES        "cells.db $(sram_dbs)";\n \
-	set MW_REFERENCE_LIB_DIRS       "$(mw_cells_dir)/cells.fr $(sram_mws_wdir)";\n \
-	set TECH_FILE                   "$(techfile_dir)/cells.tf";\n \
-	set MAP_FILE                    "$(techfile_dir)/tech2itf.map";\n \
-	set TLUPLUS_MAX_FILE            "$(tluplus_cells_dir)/cells-max.tluplus";\n \
-	set TLUPLUS_MIN_FILE            "$(tluplus_cells_dir)/cells-min.tluplus";\n \
+	set TARGET_LIBRARY_FILES        "stdcells.db $(sram_dbs)";\n \
+	set MW_REFERENCE_LIB_DIRS       "$(mw_cells_dir)/stdcells.mwlib $(sram_mws_wdir)";\n \
+	set TECH_FILE                   "$(techfile_dir)/rtk-tech.tf";\n \
+	set MAP_FILE                    "$(techfile_dir)/rtk-tluplus.map";\n \
+	set TLUPLUS_MAX_FILE            "$(tluplus_cells_dir)/rtk-max.tluplus";\n \
+	set TLUPLUS_MIN_FILE            "$(tluplus_cells_dir)/rtk-min.tluplus";\n \
 	set REPORTS_DIR                 "$(reports_dir)";\n \
 	set RESULTS_DIR                 "$(results_dir)";\n \
 	set REPORTING_EFFORT            "OFF";\n \
 	set PNR_EFFORT                  "low";\n \
 	set CELLS                       "$(cells)";\n \
-	set CELLS_TCL                   "$(cells_dir)/cells.tcl";\n \
+	set CELLS_TCL                   "$(adk_dir)/stdcells.tcl";\n \
 
 iccdp_vars = \
 	set ICC_FLOORPLAN_CEL            "init_design_icc";\n \

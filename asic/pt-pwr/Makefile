@@ -7,9 +7,6 @@
 # power of your gate-level verilog netlist.
 #
 
-# UCB_VLSI_HOME = /research/brg/install/bare-pkgs/noarch
-# UCB_STDCELLS = synopsys-90nm/toolflow
-
 include ../Makefrag
 
 # Because we now only support the PyMTL flow, we can just generate these
@@ -102,8 +99,8 @@ pt_time_max_rpt = $(addprefix $(cur_build_pt_dir)/$(reports_dir)/, $(addsuffix .
 
 vars = \
 	set DESIGN_NAME                 "$(toplevel)";\n \
-	set ADDITIONAL_SEARCH_PATH      "$(cells_dir) ../../cacti-mc ../$(icc_dir)";\n \
-	set TARGET_LIBRARY_FILES        "cells.db $(sram_dbs)";\n \
+	set ADDITIONAL_SEARCH_PATH      "$(adk_dir) ../../cacti-mc ../$(icc_dir)";\n \
+	set TARGET_LIBRARY_FILES        "stdcells.db $(sram_dbs)";\n \
 	set REPORTS_DIR                 "$(reports_dir)";\n \
 	set NETLIST_FILES               "$(notdir $(icc_v))";\n \
 	set CONSTRAINT_FILES           "../$(icc_sdc)";\n \

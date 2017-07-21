@@ -49,7 +49,7 @@ set_si_options -delta_delay true  \
 #                -route_xtalk_prevention true \
 #                -route_xtalk_prevention_threshold 0.25
 
-set_delay_calculation -arnoldi
+set_delay_calculation_options -arnoldi_effort medium
 if {$ICC_FULL_ARNOLDI} {
     echo "SCRIPT-Info : Enabling Arnoldi for all nets of the design"
     set rc_rd_more_than_rnet_arnoldi_threshold 100000000

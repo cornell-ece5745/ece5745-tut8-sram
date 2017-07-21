@@ -9,9 +9,6 @@
 # generated gate-level verilog netlist against your RTL implementation.
 #
 
-# UCB_VLSI_HOME = /research/brg/install/bare-pkgs/noarch
-# UCB_STDCELLS = synopsys-90nm/toolflow
-
 include ../Makefrag
 
 # Because we now only support the PyMTL flow, we can just generate these
@@ -40,7 +37,7 @@ viname = TOP/v
 # - "scale" is a bc parameter that determines the total number of decimal
 #   digits after the decimal point
 
-#dc_clock_period = 0$(shell echo "scale=4; ${clock_period}*0.9" | bc)
+# dc_clock_period = 0$(shell echo "scale=4; ${clock_period}*0.9" | bc)
 dc_clock_period = $(clock_period)
 
 default: all
@@ -82,7 +79,7 @@ sram_mws      = $(patsubst %, %.mw, $(srams))
 sram_mws_wdir = $(addprefix ../../cacti-mc/, $(sram_mws))
 
 # The ALIB directory is where DC caches analyzed libraries (.alib files).
-# Normally, we use: $(cells_dir)/alib
+# Normally, we use: $(adk_dir)/stdcells.alib
 #
 # If DC sees a .db that does not have an associated .alib it will
 # automatically create one, but the problem is students do not have write
@@ -98,7 +95,7 @@ sram_mws_wdir = $(addprefix ../../cacti-mc/, $(sram_mws))
 # least amortize the analyze time across builds.
 
 ifeq ($(strip $(srams)),)
-  alib_dir=$(cells_dir)/alib
+  alib_dir=$(adk_dir)/stdcells.alib
 else
   alib_dir=../alib
 endif
@@ -135,13 +132,13 @@ vars = \
 	set VINAME                      "$(viname)";\n \
 	set DESIGN_NAME                 "$(toplevel)";\n \
 	set STRIP_PATH                  "$(toplevel)";\n \
-	set ADDITIONAL_SEARCH_PATH      "$(cells_dir) $(sim_search_dir) ../../cacti-mc";\n \
-	set TARGET_LIBRARY_FILES        "cells.db $(sram_dbs)";\n \
-	set MW_REFERENCE_LIB_DIRS       "$(cells_dir)/cells.fr $(sram_mws_wdir)";\n \
-	set TECH_FILE                   "$(cells_dir)/cells.tf";\n \
-	set MAP_FILE                    "$(cells_dir)/tech2itf.map";\n \
-	set TLUPLUS_MAX_FILE            "$(cells_dir)/cells-max.tluplus";\n \
-	set TLUPLUS_MIN_FILE            "$(cells_dir)/cells-min.tluplus";\n \
+	set ADDITIONAL_SEARCH_PATH      "$(adk_dir) $(sim_search_dir) ../../cacti-mc";\n \
+	set TARGET_LIBRARY_FILES        "stdcells.db $(sram_dbs)";\n \
+	set MW_REFERENCE_LIB_DIRS       "$(adk_dir)/stdcells.mwlib $(sram_mws_wdir)";\n \
+	set TECH_FILE                   "$(adk_dir)/rtk-tech.tf";\n \
+	set MAP_FILE                    "$(adk_dir)/rtk-tluplus.map";\n \
+	set TLUPLUS_MAX_FILE            "$(adk_dir)/rtk-max.tluplus";\n \
+	set TLUPLUS_MIN_FILE            "$(adk_dir)/rtk-min.tluplus";\n \
 	set ALIB_DIR                    "$(alib_dir)";\n \
 	set RTL_SOURCE_FILES            "$(notdir $(vsrcs))";\n \
 	set DCRM_CONSTRAINTS_INPUT_FILE "constraints.tcl";\n \
@@ -149,7 +146,7 @@ vars = \
 	set RESULTS_DIR                 "$(results_dir)";\n \
 	set CLOCK_PERIOD                "$(dc_clock_period)";\n \
 	set CELLS                       "$(cells)";\n \
-	set CELLS_TCL                   "$(cells_dir)/cells.tcl";\n \
+	set CELLS_TCL                   "$(adk_dir)/stdcells.tcl";\n \
 
 define new-build-dir-cmds
 	mkdir $(build_dc_dir)

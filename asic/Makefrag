@@ -8,9 +8,10 @@
 #-------------------------------------------------------------------------
 # Standard Cells
 #-------------------------------------------------------------------------
+# Specify which ASIC design kit (ADK) and the corresponding view of that
+# ADK to use for the ASIC flow.
 
-cells     = saed-90nm-synopsys-cells
-cells_dir = $(BARE_PKGS_GLOBAL_ROOT)/noarch/$(cells)
+adk_dir = $(ADK_PKGS)/saed-90nm/stdview
 
 #-------------------------------------------------------------------------
 # Make Variables
@@ -67,7 +68,7 @@ cells_dir = $(BARE_PKGS_GLOBAL_ROOT)/noarch/$(cells)
 # This way you can just set the "design" make variable to push a specific
 # design through the flow.
 
-design = sort-unit
+design = gcd-unit
 
 #-------------------------------------------------------------------------
 # Tutorial 6 Designs
@@ -98,7 +99,7 @@ endif
 ifeq ($(design),tut8-sram)
   clock_period  = 2.0
   vsrc          = SramValRdyRTL_blackbox.v
-  vcd           = sram-rtl-allzero.verilator1.vcd
+  vcd           = sram-rtl-random.verilator1.vcd
   srams         = SRAM_64x64_1P
 endif
 

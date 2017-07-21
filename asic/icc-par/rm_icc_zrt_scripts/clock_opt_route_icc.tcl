@@ -42,7 +42,7 @@ if { [check_error -verbose] != 0} { echo "SCRIPT-Error, flagging ..." }
 ##################################
 #       CLOCK ROUTING            #
 ##################################
-set_delay_calculation -clock_arnoldi
+set_delay_calculation_options -arnoldi_effort medium
 route_zrt_group -all_clock_nets -reuse_existing_global_route true
 
 if { [check_error -verbose] != 0} { echo "SCRIPT-Error, flagging ..." }

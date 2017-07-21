@@ -37,9 +37,7 @@ set_app_var cts_instance_name_prefix CTS
 #set_rp_group_options [all_rp_groups] -cts_option fixed_placement
 #set_rp_group_options [all_rp_groups] -cts_option "size_only"
 
-
-set_delay_calculation -clock_arnoldi
-
+set_delay_calculation_options -arnoldi_effort medium
 
 if {$ICC_CTS_CLOCK_GATE_SPLIT} {
  report_split_clock_gates_options
