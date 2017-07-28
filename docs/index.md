@@ -197,7 +197,7 @@ memory generator.
 
 ```
  % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
- % klayout -l $STDCELLS_DIR/klayout.lyp SRAM_64x64_1P.gds
+ % klayout -l $ECE5745_STDCELLS/klayout.lyp SRAM_64x64_1P.gds
 ```
 
 The following figure shows the layout for the SRAM macro. In Klayout, you
@@ -912,8 +912,8 @@ SRAM macro.
  % cd $TOPDIR/asic/dc-syn/build-dc-manual
  % dc_shell-xg-t
 
- dc_shell> set_app_var target_library "$env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
  dc_shell> analyze -format sverilog ../../../sim/build/SramValRdyRTL_blackbox.v
  dc_shell> elaborate SramValRdyRTL
  dc_shell> check_design
@@ -947,18 +947,18 @@ cells, and then automatically route everything together.
  % cd $TOPDIR/asic/icc-par/build-icc-manual
  % icc_shell -gui
 
- icc_shell> set_app_var target_library "$env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
- icc_shell> set_app_var link_library   "* $env(STDCELLS_DIR)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ icc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+ icc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
 
  icc_shell> create_mw_lib -open \
-    -tech                 "$env(STDCELLS_DIR)/rtk-tech.tf" \
-    -mw_reference_library "$env(STDCELLS_DIR)/stdcells.mwlib ../../cacti-mc/SRAM_64x64_1P.mw" \
+    -tech                 "$env(ECE5745_STDCELLS)/rtk-tech.tf" \
+    -mw_reference_library "$env(ECE5745_STDCELLS)/stdcells.mwlib ../../cacti-mc/SRAM_64x64_1P.mw" \
     "LIB"
 
  icc_shell> set_tlu_plus_files \
-    -max_tluplus  "$env(STDCELLS_DIR)/rtk-max.tluplus" \
-    -min_tluplus  "$env(STDCELLS_DIR)/rtk-min.tluplus" \
-    -tech2itf_map "$env(STDCELLS_DIR)/rtk-tluplus.map"
+    -max_tluplus  "$env(ECE5745_STDCELLS)/rtk-max.tluplus" \
+    -min_tluplus  "$env(ECE5745_STDCELLS)/rtk-min.tluplus" \
+    -tech2itf_map "$env(ECE5745_STDCELLS)/rtk-tluplus.map"
 
  icc_shell> import_designs -format verilog "../../dc-syn/build-dc-manual/post-synth.v"
  icc_shell> create_clock clk -name ideal_clock1 -period 1
