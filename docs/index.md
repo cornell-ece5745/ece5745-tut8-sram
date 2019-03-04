@@ -3,12 +3,12 @@ ECE 5745 Tutorial 8: SRAM Generators
 ==========================================================================
 
  - Author: Christopher Batten
- - Date: May 6, 2017
+ - Date: March 3, 2019
 
 **Table of Contents**
 
  - Introduction
- - Synopsys Educational Memory Generator
+ - OpenRAM Memory Generator
  - CACTI Memory Generator
  - Using SRAMs in RTL Models
  - Manual ASIC Flow with SRAM Macros
@@ -33,18 +33,18 @@ power usage. These views can then by used by the ASIC tools to produce a
 complete design which includes a mix of both standard cells and SRAM
 macros.
 
-The tutorial will first describe how to use both the Synopsys Educational
-(SAED) memory generator to generate various views of an SRAM macro.
-Unfortunately, the SAED memory generator can only produce smaller SRAM
-macros which do not have support for partial writes. In ECE 5745, we need
-to use much larger SRAM macros with partial writes, so we have created a
-different memory generator based on the CACTI memory modeling tool. After
-learning about both the SAED and CACTI memory generators, you will see
-how to use an SRAM in an RTL model, how to generate the corresponding
-SRAM macro, and then how to push a design which uses an SRAM macro
-through the automated ASIC flow. This tutorial assumes you have already
-completed the tutorials on Linux, Git, PyMTL, Verilog, the Synopsys ASIC
-tools, and the automated ASIC flow.
+The tutorial will first describe how to use the open-source OpenRAM
+memory generator to generate various views of an SRAM macro.
+Unfortunately, the OpenRAM memory generator does not currently have
+support for partial writes. In ECE 5745, we need to use macros with
+partial writes, so we have created a different memory generator based on
+the CACTI memory modeling tool. After learning about both the OpenRAM and
+CACTI memory generators, you will see how to use an SRAM in an RTL model,
+how to generate the corresponding SRAM macro, and then how to push a
+design which uses an SRAM macro through the automated ASIC flow. This
+tutorial assumes you have already completed the tutorials on Linux, Git,
+PyMTL, Verilog, the Synopsys/Cadence ASIC tools, and the automated ASIC
+flow.
 
 The following diagram illustrates how the memory generator integrates
 with the four primary tools covered in the previous tutorials. We run the
@@ -67,230 +67,305 @@ directory for the project.
  % TOPDIR=$PWD
 ```
 
-Synopsys Educational Memory Generator
+OpenRAM Memory Generator
 --------------------------------------------------------------------------
 
 Just as with standard-cell libraries, acquiring real SRAM generators is a
 complex and potentially expensive process. It requires gaining access to
 a specific fabrication technology, negotiating with a company which makes
 the SRAM generator, and usually signing multiple non-disclosure
-agreements. The Synopsys Educational (SAED) memory generator is based on
-the same "fake" 90nm technology that we are using for the Synopsys
-Educational standard-cell library. The "fake" technology, standard-cell
-library, and SRAM generator were all specifically designed by Synopsys
-for teaching, and the technology is representative enough to provide
-reasonable area, energy, and timing estimates for our purposes. In this
-section, we will take a look at how to use the SAED memory generator to
-generate various views of an SRAM macro.
+agreements. The OpenRAM memory generator is based on the same "fake" 45nm
+technology that we are using for the Nangate standard-cell library. The
+"fake" technology is representative enough to provide reasonable area,
+energy, and timing estimates for our purposes. In this section, we will
+take a look at how to use the OpenRAM memory generator to generate
+various views of an SRAM macro.
 
-A SRAM generator takes as input a configuration file which specifies the
+An SRAM generator takes as input a configuration file which specifies the
 various parameters for the desired SRAM macro. You can see an example
-configuration file for the SAED memory generator here:
+configuration file for the OpenRAM memory generator here:
 
 ```
- % cd $TOPDIR/asic/saed-mc
+ % cd $TOPDIR/asic-manual/openram-mc
  % more SRAM_64x64_1P.cfg
-
- instance_name=SRAM_64x64_1P
- work_dir=SRAM_64x64_1P
-
- mem_type=single_90 # specify technology and number of ports
- word_count=64      # total size of SRAM in bits
- word_bits=64       #  will be word_cout * word_bits
-
- do_spice=1         # Generate SPICE netlist
- do_gds=1           # Generate GDS layout
- do_logic=1         # Generate Verilog model
- do_lib=1           # Generate Liberty view
- do_lef=1           # Generate LEF view
+ word_size = 64
+ num_words = 64
+ num_banks = 4
+ tech_name = "freepdk45"
+ process_corners = ["TT"]
+ supply_voltages = [ 1.1 ]
+ temperatures = [ 25 ]
+ output_path = "SRAM_64x64_1P"
+ output_name = "SRAM_64x64_1P"
 ```
 
 In this example, we are generating a single-ported SRAM which has 64 rows
 and 64 bits per row for a total capacity of 4096 bits or 512B. This size
 is probably near the cross-over point where you might transition from
-using synthesized memories to SRAM macros. You can see that we will be
-generating many different views of the SRAM macro including: schematics,
-layout, a Verilog behavioral model, a `.lib` file with the abstract
-logical, timing, power view, and a `.lef` file with the physical view.
-These views can then be used by the ASIC tools.
+using synthesized memories to SRAM macros. OpenRAM will take this
+configuration file as input and generate many different views of the SRAM
+macro including: schematics (`.sp`), layout (`.gds`), a Verilog
+behavioral model (`.v`), abstract logical, timing, power view (`.lib`),
+and a physical view (`.lef`). These views can then be used by the ASIC
+tools.
 
-You can use the following commands to run the SAED memory generator.
-
-```
- % cd $TOPDIR/asic/saed-mc
- % saed_mc SRAM_64x64_1P.cfg
-```
-
-It will take 5-10 minutes to generate the SRAM macro. Also note that the
-SAED memory generator relies on the Synopsys Galaxy Custom Compiler (CC)
-tool, and for some strange reason the tool opens up the GUI for Synopsys
-Galaxy CC. You just have to wait for it to finish.
-
-You can find out more information about the SAED memory generator in the
-user manual which is located here:
+You can use the following command to run the OpenRAM memory generator.
 
 ```
- $BARE_PKGS_GLOBAL_PREFIX/saed-mc/doc
+ % cd $TOPDIR/asic-manual/openram-mc
+ % openram -v SRAM_64x64_1P.cfg
 ```
 
-The following excerpt from the user manual illustrates the
-microarchitecture used in the single-port SRAM macro. The functionality
-of the pins are as follows:
+It will take a few minutes to generate the SRAM macro. You can see the
+resulting views here:
 
- - `CE`: clock
- - `WEB`: write enable (active low)
- - `OEB`: output enable (active low)
- - `CSB`: whole SRAM enable (active low)
- - `A`: address
- - `I`: write data
- - `O`: read data
+```
+ % cd $TOPDIR/asic-manual/cati-mc/SRAM_64x64_1P
+ % ls -1
+ SRAM_64x64_1P.v
+ SRAM_64x64_1P.sp
+ SRAM_64x64_1P.gds
+ SRAM_64x64_1P.lef
+ SRAM_64x64_1P_TT_1p1V_25C.lib
+```
 
-Notice that even though there are separate read and write data pins,
-there is only one address and thus this SRAM macro only supports
-executing a single transaction at a time.
+You can find more information about the OpenRAM memory generator in this
+recent research paper:
 
-![](assets/fig/saed-sram-uarch.png)
+ - M. Guthaus et. al, "OpenRAM: An Open-Source Memory Compiler", Int'l
+   Conf. on Computer-Aided Design (ICCAD), Nov. 2016.
+   (https://doi.org/10.1145/2966986.2980098)
 
-The following excerpt from the user manual show the timing diagram for a
-read transaction.
+The following excerpt from the paper illustrates the microarchitecture
+used in the single-port SRAM macro.
 
-![](assets/fig/saed-sram-timing-read.png)
+![](assets/fig/openram-sram-uarch.png)
 
-The `CE` pin is used as the clock for the SRAM. In order to execute any
-kind of transaction in the SRAM, we need to set the `CSB` pin low (note
-that `CSB` is active low). Since this is a read transaction, the `WEB`
-pin is set high (note that `WEB` is active low) and the `A` pins are set
-to the row address. Note that this is a _row_ address not a _byte_
-address. From the block diagram, we can see that the address is decoded
-and used to select the desired row in the RAM array. After the rising
-edge of the `CE` pin, the read data is driven from the RAM array through
-the data select logic and I/O buffering to the `O` pins. Since we set the
-address _before_ the rising edge and the data is valid _after_ the rising
-edge, this is a _synchronous_ read SRAM. Compare this to a register file
-which often provides a _combinational_ read where the address is set and
-the data is valid sometime later during the _same_ cycle. Most SRAM
-generators produce synchronous read SRAM macros.
+The functionality of the pins are as follows:
+
+ - `clk`: clock
+ - `WEb`: write enable (active low)
+ - `OEb`: output enable (active low)
+ - `CSb`: whole SRAM enable (active low)
+ - `ADDR`: address
+ - `DATA`: read/write data
+
+Notice that there is a single address, and a single read/write data bus.
+This SRAM macro has a single read/write port and only supports executing
+a single transaction at a time. The diagram shows a bank select which is
+used when a single SRAM macro is built out of multiple lower-level
+"physical banks" to produce a more efficient layout. We will see what
+these physical banks look like a little later in the tutorial.
+
+The following excerpt from the paper shows the timing diagram for a read
+and write transaction.
+
+![](assets/fig/openram-sram-timing.png)
+
+In order to execute any kind of transaction in the SRAM, we need to set
+the `CSb` pin low (note that `CSb` is active low). Let's start by
+focusing on the read transaction shown on the left. For the read
+transaction on the left, the `WEb` pin is set high (note that `WEB` is
+active low). The `ADDR` pins are used to set the row address. Note that
+this is a _row_ address not a _byte_ address. From the block diagram, we
+can see that the address first goes into the "Address MS-Flop". This is
+an array of flip-flops which store the address on the rising edge of the
+clock. After the rising edge, the address is decoded to drive the word
+lines and enable the desired row. The read data is driven from the bit
+cell array through the column muxing and into the sense amp array. The
+`OEb` pin is used to determine whether the read data should be driven
+onto the data bus. This can enable multiple SRAM macros to be arranged on
+a distributed bus with only one SRAM driving that bus on any given cycle.
+Assuming `OEb` is low (note that `OEb` is active low), then the read data
+is driven out the `DATA` pins. Since we set the address _before_ the
+rising edge and the data is valid _after_ the rising edge, this is a
+_synchronous_ read SRAM. Compare this to a register file which often
+provides a _combinational_ read where the address is set and the data is
+valid sometime later during the _same_ cycle. Most SRAM generators
+produce synchronous read SRAM macros. For the write transaction on the
+right, the `WEb` pin is set low and the `DATA` pins are driven with the
+write data.
+
+You can look at the behavioral Verilog produced by the OpenRAM memory
+generator like this:
+
+```
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
+ % less SRAM_64x64_1P.v
+ module SRAM_64x64_1P(DATA,ADDR,CSb,WEb,OEb,clk);
+
+   parameter DATA_WIDTH = 64 ;
+   parameter ADDR_WIDTH = 6 ;
+   parameter RAM_DEPTH = 1 << ADDR_WIDTH;
+   parameter DELAY = 3 ;
+
+   inout [DATA_WIDTH-1:0] DATA;
+   input [ADDR_WIDTH-1:0] ADDR;
+   input CSb;             // active low chip select
+   input WEb;             // active low write control
+   input OEb;             // active output enable
+   input clk;             // clock
+
+   reg [DATA_WIDTH-1:0] data_out ;
+   reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];
+
+   // Tri-State Buffer control
+   // output : When WEb = 1, oeb = 0, csb = 0
+   assign DATA = (!CSb && !OEb && WEb) ? data_out : 64'bz;
+
+   // Memory Write Block
+   // Write Operation : When WEb = 0, CSb = 0
+   always @ (posedge clk)
+   begin : MEM_WRITE
+   if ( !CSb && !WEb ) begin
+     mem[ADDR] = DATA;
+     $display($time," Writing %m ABUS=%b DATA=%b",ADDR,DATA);
+     end
+   end
+
+   // Memory Read Block
+   // Read Operation : When WEb = 1, CSb = 0
+   always @ (posedge clk)
+   begin : MEM_READ
+   if (!CSb && WEb) begin
+     data_out <= #(DELAY) mem[ADDR];
+     $display($time," Reading %m ABUS=%b DATA=%b",ADDR,mem[ADDR]);
+     end
+   end
+
+ endmodule
+```
+
+This is a simple behavior Verilog model which could be used for RTL
+simulation. If you study this behavioral model you should be able to see
+how it implements the timing diagrams shown above. Again, notice that the
+read operation is modeled using an `always @(posedge clk)` block to
+reflect the fact that this SRAM uses a _sequential_ read.
 
 You can take a look at the generated transistor-level netlist like this:
 
 ```
- % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
- % less -P "bitcell " SRAM_64x64_1P.sp
- .subckt bitcell prim0 prim1 wlprim
- mg_nmos2 bitn bitp VSS VSS n12 l = 0.1u w = 0.3u m = 1
- mnmosin1 prim1 wlprim bitp VSS n12 l = 0.1u w = 0.21u m = 1
- mnmosin2 bitn wlprim prim0 VSS n12 l = 0.1u w = 0.21u m = 1
- mg_nmos1 bitp bitn VSS VSS n12 l = 0.1u w = 0.3u m = 1
- mg_pmos1 bitp bitn VDD VDD p12 l = 0.1u w = 0.12u m = 1
- mg_pmos2 bitn bitp VDD VDD p12 l = 0.1u w = 0.12u m = 1
- .IC V( bitn ) = 1.2
- .ends bitcell
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
+ % less -p " cell_6t " SRAM_64x64_1P.sp
+ .SUBCKT cell_6t bl br wl vdd gnd
+ MM5 net10 net4  vdd   vdd PMOS_VTG W=90n     L=50n
+ MM4 net4  net10 vdd   vdd PMOS_VTG W=90n     L=50n
+ MM1 net10 net4  gnd   gnd NMOS_VTG W=205.00n L=50n
+ MM0 net4  net10 gnd   gnd NMOS_VTG W=205.00n L=50n
+ MM3 bl    wl    net10 gnd NMOS_VTG W=135.00n L=50n
+ MM2 br    wl    net4  gnd NMOS_VTG W=135.00n L=50n
+ .ENDS cell_6t
 ```
 
 This is showing the netlist for one bitcell in the SRAM. This is a
-classic 6T SRAM bitcell with two cross-coupled inverters (`mg_nmos1`,
-`mg_nmos2`, `mg_pmos1`, `mg_pmos2`) and two access transistors
-(`mnmosin`, `mnmosin2`).
+classic 6T SRAM bitcell with two cross-coupled inverters (`MM0`, `MM1`,
+`MM4`, `MM5`) and two access transistors (`MM2`, `MM3`). Note that the
+transistors must be carefully sized to ensure correct operation of an
+SRAM bitcell!
 
-Now let's use Klayout look at the actual layout produced by the SAED
+Now let's use Klayout look at the actual layout produced by the OpenRAM
 memory generator.
 
 ```
- % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
  % klayout -l $ECE5745_STDCELLS/klayout.lyp SRAM_64x64_1P.gds
 ```
 
 The following figure shows the layout for the SRAM macro. In Klayout, you
 can show/hide layers by double clicking on them on the right panel. You
 can show more of the hierarchy by selecting _Display > Increment
-Hierarchy_ from the menu. In this specific figure, I have hidden the top
-metal layer power routing in order to see the underlying array of
-bitcells, the word drivers and decode logic on the right, and the column
-circuitry at the bottom.
+Hierarchy_ from the menu.
 
-![](assets/fig/sram-64x64-1p.png)
+![](assets/fig/openram-sram-64x64-1p.png)
 
-The following figures shows the layout for a single SRAM bitcell. Notice
-that two bitcells are actually encapsulated in a single bitcell "cell"
-since the two bitcells are mirrored. The word lines are routed
-horizontally on M1 (blue) and the bit lines are routed vertically on M2
-(purple). See if you can map the layout to the canonical 6T SRAM bitcell
-transistor-level implementation.
+Notice how the SRAM is organized into four physical banks. Each physical
+bank has 32 rows and and 32 bits per row. The peripherial logic is shared
+in the middle of the physical banks. Using physical banks helps reduce
+the length of the bitlines and wordlines which improves the delay and
+energy efficiency of the design.
 
-![](assets/fig/sram-bitcell.png)
+The following figure shows a closer look at a portion of the upper
+right-hand physical bank.
 
-Now let's look at the behavioral Verilog produced by the SAED memory
-generator.
+![](assets/fig/openram-sram-64x64-1p-corner.png)
 
-```
- % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
- % less SRAM_64x64_1P.v
- module SRAM_64x64_1P (A,CE,WEB,OEB,CSB,I,O);
-  input           CE;
-  input           WEB;
-  input           OEB;
-  input           CSB;
+The array of bitcells is in the upper right-hand corner, the decoder
+logic is on the left and the sense amp array and write driver array are
+at the bottom.
 
-  input   [5:0]   A;
-  input   [63:0]  I;
-  output  [63:0]  O;
+The following figure shows the layout for a single SRAM bitcell.
 
-  reg     [63:0]  memory[63:0];
-  reg     [63:0]  data_out1;
-  reg     [63:0]  O;
+![](assets/fig/openram-sram-bitcell.png)
 
-  wire            RE;
-  wire            WE;
-
-  and u1 (RE, ~CSB,  WEB);
-  and u2 (WE, ~CSB, ~WEB);
-
-  always @ (posedge CE)
-    if (RE)
-      data_out1 = memory[A];
-    else
-    if (WE)
-      memory[A] = I;
-
-  always @ (data_out1 or OEB)
-    if (!OEB)
-      O = data_out1;
-    else
-      O =  64'bz;
-  endmodule
-```
-
-This is a simple behavior Verilog model which could be used for RTL
-simulation, although notice the SRAM generator is not using non-blocking
-assignments when reading/writing the `memory`. This could cause strange
-behavior, so a designer would need to use this model with care.
+The word line is routed horizontally on M1 (blue) and the bit lines are
+routed vertically on M2 (green). It looks like power and ground are
+routed both vertically and horizontally. See if you can map the layout to
+the canonical 6T SRAM bitcell transistor-level implementation.
 
 Let’s look at snippet of the `.lib` file for the SRAM macro.
 
 ```
- % cd $TOPDIR/asic/saed-mc/SRAM_64x64_1P
- % less SRAM_64x64_1P.lib
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P/SRAM_64x64_1P
+ % less SRAM_64x64_1P_*.lib
+ ...
  cell (SRAM_64x64_1P) {
-   area :  59269.136 ;
-   pin(A[0]) {
-     direction : input;
-     capacitance : 0.1;
-     max_transition : 2.000;
-   }
+   area : 13267.5016125;
+   ...
+    bus(ADDR){
+        bus_type       : ADDR;
+        direction      : input;
+        capacitance    : 0.2091;
+        max_transition : 0.04;
+        pin(ADDR[5:0]){
+        timing(){
+            timing_type : setup_rising;
+            related_pin  : "clk";
+            rise_constraint(CONSTRAINT_TABLE) {
+            values("0.009, 0.009, 0.009",\
+                   "0.009, 0.009, 0.009",\
+                   "0.009, 0.009, 0.009");
+            }
+            fall_constraint(CONSTRAINT_TABLE) {
+            values("0.009, 0.009, 0.009",\
+                   "0.009, 0.009, 0.009",\
+                   "0.009, 0.009, 0.009");
+            }
+        }
+        timing(){
+            timing_type : hold_rising;
+            related_pin  : "clk";
+            rise_constraint(CONSTRAINT_TABLE) {
+            values("0.001, 0.001, 0.001",\
+                   "0.001, 0.001, 0.001",\
+                   "0.001, 0.001, 0.001");
+              }
+            fall_constraint(CONSTRAINT_TABLE) {
+            values("0.001, 0.001, 0.001",\
+                   "0.001, 0.001, 0.001",\
+                   "0.001, 0.001, 0.001");
+            }
+        }
+        }
+    }
    ...
  }
 ```
 
 As with the standard-cell library, the `.lib` includes information about
 the area of the block, the capacitance on all pins, and power of the
-circuit.
+circuit. By default OpenRAM will use analytical models to estimate this
+characterization data which is probably why the timing values are not
+varying within a look-up table. OpenRAM can also use spice simulations to
+estimate this characterization data. These simulations will result in the
+memory compiler taking significantly longer to generate the SRAM macros,
+but will also result in much more accurate characterization data.
 
 The `.lef` file will mostly contain large rectangular blockages which
-mean that the ASIC tools should not route any M1, M2, M3, M4 wires over
-the SRAM (because they would accidentally create short circuits with the
-M1, M2, M3, M4 wires already in the SRAM macro). The `.lef` file also
-identifies where all of the pins are physically located so the ASIC tools
-can correctly connect to the SRAM macro.
+mean that the ASIC tools should not route any M1, M2, M3 wires over the
+SRAM (because they would accidentally create short circuits with the M1,
+M2, M3 wires already in the SRAM macro). The `.lef` file also identifies
+where all of the pins are physically located so the ASIC tools can
+correctly connect to the SRAM macro.
 
 Try experimenting with the configuration file to generate other SRAM
 macros.
@@ -298,19 +373,14 @@ macros.
 CACTI Memory Generator
 --------------------------------------------------------------------------
 
-While the SAED memory generator is useful for understanding how memory
-generators work in general, the SRAM macros produced by the SAED memory
-generator are not particularly useful in this course for two reasons.
-First, the SAED memory generator can only generate SRAM macros with 16,
-32, 64, or 128 rows and the maximum bits per row is 512. This is somewhat
-limiting, but perhaps more importantly the SAED memory generator does not
-support partial writes. So to build SRAMs suitable for use in caches we
-would need to combine many smaller SRAMs, and we would need to carefully
-write only one of these smaller SRAMs for a partial write. The SAED
-memory generator also produces relatively simplistic `.lib` files which
-make reasonable power analysis difficult. Given these issues, we will be
-using a different memory generator based on the CACTI memory modeling
-tool.
+While the OpenRAM memory generator is useful for understanding how memory
+generators work in general, the SRAM macros produced by the OpenRAM
+memory generator are less useful in this course since they do not support
+partial writes. So to build SRAMs suitable for use in caches we would
+need to combine many smaller SRAMs, and we would need to carefully write
+only one of these smaller SRAMs for a partial write. Given these issues,
+we will be using a different memory generator based on the CACTI memory
+modeling tool.
 
 The CACTI memory generator is not a "real" memory generator, but instead
 it uses first-order analytical modeling to estimate the area, energy, and
@@ -328,7 +398,7 @@ various parameters for the desired SRAM macro. You can see an example
 configuration file for the CACTI memory generator here:
 
 ```
- % cd $TOPDIR/asic/cacti-mc
+ % cd $TOPDIR/asic-manual/cacti-mc
  % more SRAM_64x64_1P.cfg
  conf:
   baseName:   SRAM
@@ -337,7 +407,7 @@ configuration file for the CACTI memory generator here:
   numRWPorts: 1
   numRPorts:  0
   numWPorts:  0
-  technology: 90
+  technology: 45
   opCond:     Typical
   debug:      False
   noBM:       False
@@ -352,7 +422,7 @@ instructors to modify the setup.
 You can use the following commands to run the CACTI memory generator.
 
 ```
- % cd $TOPDIR/asic/cati-mc
+ % cd $TOPDIR/asic-manual/cati-mc
  % cacti-mc SRAM_64x64_1P.cfg
 ```
 
@@ -360,13 +430,13 @@ It will take a few minutes to generate the SRAM macro. You can see the
 resulting views here:
 
 ```
- % cd $TOPDIR/asic/cati-mc/SRAM_64x64_1P
+ % cd $TOPDIR/asic-manual/cati-mc/SRAM_64x64_1P
  % ls -1
- % SRAM_64x64_1P.v
- % SRAM_64x64_1P.lib
- % SRAM_64x64_1P.db
- % SRAM_64x64_1P.lef
- % SRAM_64x64_1P.mw
+ SRAM_64x64_1P.v
+ SRAM_64x64_1P.lib
+ SRAM_64x64_1P.db
+ SRAM_64x64_1P.lef
+ SRAM_64x64_1P.mw
 ```
 
 Notice there is no real layout nor transistor-level netlist. Instead, the
@@ -378,9 +448,11 @@ information on the dimensions of the cell and the location and dimensions
 of both power/ground and signal pins; and a `.mw` file which is a
 Milkyway database representation of the SRAM macro based on the `.lef`.
 
-The CACTI SRAM macros have a very similar pin-level interface as the SAED
-SRAM macros with the exception of an additional `WBM` pin which is used
-as a write byte mask.
+The CACTI SRAM macros have a similar pin-level interface as the OpenRAM
+SRAM macros with a few exceptions: the `CE` signal is used as the clock;
+there are separate input/output data buses _but_ only one can be used at
+a time since this is a single-ported SRAM; and there is an additional
+`WBM` pin which is used as a write byte mask (i.e., for partial writes).
 
 Using SRAMs in RTL Models
 --------------------------------------------------------------------------
@@ -598,7 +670,7 @@ configuration file should contain the following contents:
   numRWPorts: 1
   numRPorts:  0
   numWPorts:  0
-  technology: 90
+  technology: 45
   opCond:     Typical
   debug:      False
   noBM:       False
@@ -898,7 +970,8 @@ The next step is to run the CACTI memory generator to generate the SRAM
 macro corresponding to the desired 64x64 configuration.
 
 ```
- % cd $TOPDIR/asic/cacti-mc
+ % rm -rf $TOPDIR/asic-manual/cacti-mc/*
+ % cd $TOPDIR/asic-manual/cacti-mc
  % cacti-mc ../../sim/sram/SRAM_64x64_1P.cfg
  % cd SRAM_64x64_1P
  % mv *.lib *.db *.lef *.mw ..
@@ -908,26 +981,26 @@ Now we can use Synopsys DC to synthesize the logic which goes around the
 SRAM macro.
 
 ```
- % mkdir -p $TOPDIR/asic/dc-syn/build-dc-manual
- % cd $TOPDIR/asic/dc-syn/build-dc-manual
+ % mkdir -p $TOPDIR/asic-manual/synopsys-dc
+ % cd $TOPDIR/asic-manual/synopsys-dc
  % dc_shell-xg-t
 
- dc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> analyze -format sverilog ../../../sim/build/SramValRdyRTL_blackbox.v
+ dc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../cacti-mc/SRAM_64x64_1P.db"
+ dc_shell> analyze -format sverilog ../../sim/build/SramValRdyRTL_blackbox.v
  dc_shell> elaborate SramValRdyRTL
  dc_shell> check_design
- dc_shell> create_clock clk -name ideal_clock1 -period 1
+ dc_shell> create_clock clk -name ideal_clock1 -period 0.35
  dc_shell> compile
  dc_shell> write -format verilog -hierarchy -output post-synth.v
  dc_shell> exit
 ```
 
-We are basically using the same steps we used in the Synopsys ASIC tool
-tutorial. Notice how we must point Synopsys DC to the `.db` file
-generated by the CACTI memory generator so Synopsys DC knows the abstract
-logical, timing, power view of the SRAM. Also notice how we are pointing
-Synopsys DC to the blackbox Verilog.
+We are basically using the same steps we used in the Synopsys/Cadence
+ASIC tool tutorial. Notice how we must point Synopsys DC to the `.db`
+file generated by the CACTI memory generator so Synopsys DC knows the
+abstract logical, timing, power view of the SRAM. Also notice how we are
+pointing Synopsys DC to the blackbox Verilog.
 
 If you look for the SRAM module in the synthesized gate-level netlist,
 you will see that it is referenced but not declared. This is what we
@@ -935,121 +1008,146 @@ expect since we are not synthesizing the memory but instead using an SRAM
 macro.
 
 ```
- % cd $TOPDIR/asic/dc-syn/build-dc-manual
+ % cd $TOPDIR/asic-manual/synopsys-dc
  % less -p SRAM post-synth.v
 ```
 
-Now we can use Synopsys ICC to place the SRAM macro and the standard
-cells, and then automatically route everything together.
+Now we can use Cadence Innovus to place the SRAM macro and the standard
+cells, and then automatically route everything together. We will be
+running Cadence Innovus in a separate directory to keep the files
+separate from the other tools.
 
 ```
- % mkdir -p $TOPDIR/asic/icc-par/build-icc-manual
- % cd $TOPDIR/asic/icc-par/build-icc-manual
- % icc_shell -gui
+ % mkdir -p $TOPDIR/asic-manual/cadence-innovus
+ % cd $TOPDIR/asic-manual/cadence-innovus
+```
 
- icc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
- icc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../../cacti-mc/SRAM_64x64_1P.db"
+As in the Synopsys/Cadence ASIC tool tutorial, we need to create two
+files before starting Cadence Innovus. Use Geany or your favorite text
+editor to create a file named `constraints.sdc`in
+`$TOPDIR/asic-manual/cadence-innovus` with the following content:
 
- icc_shell> create_mw_lib -open \
-    -tech                 "$env(ECE5745_STDCELLS)/rtk-tech.tf" \
-    -mw_reference_library "$env(ECE5745_STDCELLS)/stdcells.mwlib ../../cacti-mc/SRAM_64x64_1P.mw" \
-    "LIB"
+```
+ create_clock clk -name ideal_clock -period 0.35
+```
 
- icc_shell> set_tlu_plus_files \
-    -max_tluplus  "$env(ECE5745_STDCELLS)/rtk-max.tluplus" \
-    -min_tluplus  "$env(ECE5745_STDCELLS)/rtk-min.tluplus" \
-    -tech2itf_map "$env(ECE5745_STDCELLS)/rtk-tluplus.map"
+Now use Geany or your favorite text editor to create a file named
+`setup-timing.tcl` in `$TOPDIR/asic-manual/cadence-innovus` with the
+following content:
 
- icc_shell> import_designs -format verilog "../../dc-syn/build-dc-manual/post-synth.v"
- icc_shell> create_clock clk -name ideal_clock1 -period 1
- icc_shell> create_floorplan -core_utilization 0.7
+```
+ create_rc_corner -name typical \
+    -cap_table "$env(ECE5745_STDCELLS)/rtk-typical.captable" \
+    -T 25
+
+ create_library_set -name libs_typical \
+    -timing [list "$env(ECE5745_STDCELLS)/stdcells.lib" "../cacti-mc/SRAM_64x64_1P.lib"]
+
+ create_delay_corner -name delay_default \
+    -early_library_set libs_typical \
+    -late_library_set libs_typical \
+    -rc_corner typical
+
+ create_constraint_mode -name constraints_default \
+    -sdc_files [list constraints.sdc]
+
+ create_analysis_view -name analysis_default \
+    -constraint_mode constraints_default \
+    -delay_corner delay_default
+
+ set_analysis_view \
+    -setup [list analysis_default] \
+    -hold [list analysis_default]
+```
+
+This is very similar to the steps we used in the Synopsys/Cadence ASIC
+tool tutorial, except that we have to include the `.lib` file generated
+by the CACTI memory generator. Now let's start Cadence Innovus, load in
+the design, and complete the power routing just as in the
+Synopsys/Cadence ASIC tool tutorial.
+
+```
+ % cd $TOPDIR/asic-manual/cadence-innovus
+ % innovus -64
+ innovus> set init_mmmc_file "setup-timing.tcl"
+ innovus> set init_verilog   "../synopsys-dc/post-synth.v"
+ innovus> set init_top_cell  "SramValRdyRTL"
+ innovus> set init_lef_file  "$env(ECE5745_STDCELLS)/rtk-tech.lef \
+                              $env(ECE5745_STDCELLS)/stdcells.lef \
+                              ../cacti-mc/SRAM_64x64_1P.lef"
+ innovus> set init_gnd_net   "VSS"
+ innovus> set init_pwr_net   "VDD"
+ innovus> init_design
+ innovus> floorPlan -su 1.0 0.70 4.0 4.0 4.0 4.0
+ innovus> globalNetConnect VDD -type pgpin -pin VDD -inst * -verbose
+ innovus> globalNetConnect VSS -type pgpin -pin VSS -inst * -verbose
+ innovus> sroute -nets {VDD VSS}
+
+ innovus> addRing -nets {VDD VSS} -width 0.6 -spacing 0.5 \
+           -layer [list top 7 bottom 7 left 6 right 6]
+
+ innovus> addStripe -nets {VSS VDD} -layer 6 -direction vertical \
+           -width 0.4 -spacing 0.5 -set_to_set_distance 5 -start 0.5
+
+ innovus> addStripe -nets {VSS VDD} -layer 7 -direction horizontal \
+           -width 0.4 -spacing 0.5 -set_to_set_distance 5 -start 0.5
 ```
 
 The following screen capture illustrates what you should see: a square
-floorplan, the standard cells loosely arranged to the right of the
-floorplan, and the SRAM macro positioned above the floorplan.
+floorplan with a power grid.
 
-![](assets/fig/synopsys-icc-1.png)
+![](assets/fig/cadence-innovus-1.png)
 
-We can now do a simple placement of the standard cells _and_ the SRAM
-macro into the floorplan.
-
-```
- icc_shell> create_fp_placement
-```
-
-We need to fix the location of the SRAM so that the rest of the flow can
-rely on it not moving. We do that with the following command.
+We can now do a simple placement and routing of the standard cells _and_
+the SRAM macro in the floorplan, and then we can finalize the clock and
+signal routing and add filler cells.
 
 ```
- icc_shell> set_dont_touch_placement [all_macro_cells]
+ innovus> place_design
+ innovus> ccopt_design
+ innovus> routeDesign
+ innovus> setFillerMode -corePrefix FILL -core "FILLCELL_X4 FILLCELL_X2 FILLCELL_X1"
+ innovus> addFiller
 ```
 
-Use the “zoom to fit” button in the toolbar to focus on the square
-floorplan. The following screen capture illustrates what you should see:
-all of the cells arranged into tight rows within the square floorplan.
+The following screen capture illustrates what you should see. The SRAM
+macro is the large rectangle on the right-hand size of the floorplan. The
+power grid has been hidden to make it easier to see the SRAM macro.
 
-![](assets/fig/synopsys-icc-2.png)
+![](assets/fig/cadence-innovus-2.png)
 
-Notice how the SRAM macro is automatically placed in the upper left-hand
-corner and the standard cells are arranged in rows to the right and below
-the SRAM macro.
+Cadence Innovus automatically placed the SRAM macro on the right and then
+arranged the standard cells in rows to the left of the SRAM macro. The
+SRAM macro pins are all on the bottom. The tool has automatically routed
+all of the signals between the standard cells and these SRAM macro pins.
+The following screen capture shows a closer look at this signal routing.
 
-We can now finish up with automatic power, clock, and signal routing.
+![](assets/fig/cadence-innovus-3.png)
 
-```
- icc_shell> derive_pg_connection \
-  -power_net  "VDD" -power_pin  "VDD" \
-  -ground_net "VSS" -ground_pin "VSS" \
-  -create_ports top
+Notice how Cadence Innovus has used larger wires on higher metal layers
+to do some of the global routing to and from the SRAM macro. The
+following screen capture shows using _Windows > Workspaces > Design
+Browser + Physical_ to highlight two parts of the design. The
+standard-cells in the memory response queue are highlighted in red, and
+the read data bus which connects the SRAM macro to this memory response
+queue is highlighted in yellow.
 
- icc_shell> synthesize_fp_rail \
-  -power_budget 1000 -voltage_supply 1.2 -target_voltage_drop 250 \
-  -nets "VDD VSS" \
-  -create_virtual_rails "M1" \
-  -synthesize_power_plan -synthesize_power_pads -use_strap_ends_as_pads
+![](assets/fig/cadence-innovus-4.png)
 
- icc_shell> commit_fp_rail
-
- icc_shell> clock_opt
-
- icc_shell> route_opt
- icc_shell> insert_stdcell_filler \
-  -cell_with_metal "SHFILL128 SHFILL64 SHFILL3 SHFILL2 SHFILL1" \
-  -connect_to_power "VDD" -connect_to_ground "VSS"
-```
-
-The following screen capture illustrates the final layout.
-
-![](assets/fig/synopsys-icc-3.png)
-
-Notice that there are many wires connecting the SRAM to the standard
-cells. The following screen capture shows a closer view of this routing.
-
-![](assets/fig/synopsys-icc-4.png)
-
-Finally, we might want to take a closer look at which cells are
-associated with various modules in the layout using the following steps:
-
- - Choose _Placement > Color By Hierarchy_ from the menu
- - select _Reload_ in the sidebar on right
- - Select _Color hierarchical cells at level_ in the pop-up window
- - Click _OK_ in the pop up
-
-![](assets/fig/synopsys-icc-5.png)
-
-Recall that the only logic in the SRAM val/rdy wrapper besides the SRAM
-macro is an input register for the memory request and the memory response
-queue. The memory response queue has two entries and each entry is 110
-bits for a total storage of about 220 bits. The SRAM macro includes 64
-entries, each of which is 64 bits for a total storage of 4096 bits. From
-the amoeba plot we can see that the memory response queue is _larger_ than
-the SRAM macro even though the SRAM macro can store 18x more data! This
-clearly illustrates the benefit of using an SRAM generator. We are able
-to generate much denser memories, but also note that the SRAM macro has
-higher latency (a full clock cycle vs. less than a cycle for the memory
-response queue) and has lower throughput (a single port vs. a separate
-read and write port for the memory response queue).
+This should make it more clear how the tool routes this data bus between
+the standard cells and the SRAM macro pins. Recall that the only logic in
+the SRAM val/rdy wrapper besides the SRAM macro is an input register for
+the memory request and the memory response queue. The memory response
+queue has two entries and each entry is 110 bits for a total storage of
+about 220 bits. The SRAM macro includes 64 entries, each of which is 64
+bits for a total storage of 4096 bits. From the amoeba plot we can see
+that the memory response queue is similar in size to the SRAM macro even
+though the SRAM macro can store 18x more data! This clearly illustrates
+the benefit of using an SRAM generator. We are able to generate much
+denser memories, but also note that the SRAM macro has higher latency (a
+full clock cycle vs. less than a cycle for the memory response queue) and
+has lower throughput (a single port vs. a separate read and write port
+for the memory response queue).
 
 Automated ASIC Flow with SRAM Macros
 --------------------------------------------------------------------------
@@ -1084,7 +1182,7 @@ We have created a `Makefile` to automate using the CACTI memory
 generator.
 
 ```
- % cd $TOPDIR/asic/cacti-mc
+ % cd $TOPDIR/asic-manual/cacti-mc
  % make
 ```
 
@@ -1092,9 +1190,9 @@ After generating the SRAM macro, we can use Synopsys DC, ICC, and PT as
 before.
 
 ```
- % cd $TOPDIR/asic/dc-syn  && make
- % cd $TOPDIR/asic/icc-par && make
- % cd $TOPDIR/asic/pt-pwr  && make
+ % cd $TOPDIR/asic-manual/dc-syn  && make
+ % cd $TOPDIR/asic-manual/icc-par && make
+ % cd $TOPDIR/asic-manual/pt-pwr  && make
 
   vsrc       = SramValRdyRTL_blackbox.v
   input      = sram-rtl-random
@@ -1124,7 +1222,7 @@ not see any paths going _through_ the SRAM macro since it is a
 synchronous read SRAM. You can view the area report like this:
 
 ```
- % cd $TOPDIR/asic/icc-par
+ % cd $TOPDIR/asic-manual/icc-par
  % more current-icc/reports/chip_finish_icc.area.rpt
 
  Combinational area:               5696.409626
@@ -1190,7 +1288,7 @@ We need to update the `Makefrag` to point to the new VCD file.
 Now we re-run Synopsys PT:
 
 ```
-% cd $TOPDIR/asic/pt-pwr && make
+% cd $TOPDIR/asic-manual/pt-pwr && make
 
   vsrc       = SramValRdyRTL_blackbox.v
   input      = sram-rtl-allzero
@@ -1204,4 +1302,3 @@ Now we re-run Synopsys PT:
 ```
 
 As expected, the energy has decreased from 4.5nJ to 3.3nJ.
-

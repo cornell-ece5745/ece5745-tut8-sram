@@ -11,6 +11,7 @@ scripts/work
 build*/
 autom4te.cache/
 __pycache__/
+*/.pytest_cache
 *.py[cod]
 .DS_Store
 .cache/

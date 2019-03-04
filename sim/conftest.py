@@ -5,6 +5,10 @@
 import pytest
 import random
 
+#-------------------------------------------------------------------------
+# pytest_addoption
+#-------------------------------------------------------------------------
+
 def pytest_addoption(parser):
 
   parser.addoption( "--dump-vcd", action="store_true",
@@ -27,10 +31,9 @@ def pytest_addoption(parser):
   parser.addoption( "--vrtl", action="store_true",
                     help="use VRTL implementations" )
 
-@pytest.fixture(autouse=True)
-def fix_randseed():
-  """Set the random seed prior to each test case."""
-  random.seed(0xdeadbeef)
+#-------------------------------------------------------------------------
+# handle command line options
+#-------------------------------------------------------------------------
 
 @pytest.fixture()
 def dump_vcd(request):
@@ -57,6 +60,28 @@ def test_verilog(request):
   """Test Verilog translation rather than python."""
   return request.config.option.test_verilog
 
+#-------------------------------------------------------------------------
+# Handle other command line options
+#-------------------------------------------------------------------------
+
+def pytest_configure(config):
+  import sys
+  sys._called_from_test   = True
+  sys._pymtl_rtl_override = False
+  if config.option.prtl:
+    sys._pymtl_rtl_override = 'pymtl'
+  elif config.option.vrtl:
+    sys._pymtl_rtl_override = 'verilog'
+
+def pytest_unconfigure(config):
+  import sys
+  del sys._called_from_test
+  del sys._pymtl_rtl_override
+
+#-------------------------------------------------------------------------
+# fix_randseed
+#-------------------------------------------------------------------------
+
 def pytest_cmdline_preparse(config, args):
   """Don't write *.pyc and __pycache__ files."""
   import sys
@@ -73,13 +98,13 @@ def pytest_report_header(config):
   elif config.option.vrtl:
     return "forcing RTL language to be verilog"
 
-# From:
-# https://pytest.org/latest/example/simple.html#detect-if-running-from-within-a-pytest-run
+#-------------------------------------------------------------------------
+# fix_randseed
+#-------------------------------------------------------------------------
+# fix random seed to make tests reproducable
 
-def pytest_configure(config):
-  import sys
-  sys._called_from_test = True
+@pytest.fixture(autouse=True)
+def fix_randseed():
+  """Set the random seed prior to each test case."""
+  random.seed(0xdeadbeef)
 
-def pytest_unconfigure(config):
-  import sys
-  del sys._called_from_test

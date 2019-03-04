@@ -55,12 +55,8 @@ class SramValRdyVRTL( VerilogModel ):
 
 import sys
 if hasattr( sys, '_called_from_test' ):
-
-  import pytest
-  if pytest.config.getoption('prtl'):
-    rtl_language = 'pymtl'
-  elif pytest.config.getoption('vrtl'):
-    rtl_language = 'verilog'
+  if sys._pymtl_rtl_override:
+    rtl_language = sys._pymtl_rtl_override
 
 # Import the appropriate version based on the rtl_language variable
 
