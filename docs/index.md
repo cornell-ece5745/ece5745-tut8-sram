@@ -1078,7 +1078,7 @@ Synopsys/Cadence ASIC tool tutorial.
  innovus> set init_gnd_net   "VSS"
  innovus> set init_pwr_net   "VDD"
  innovus> init_design
- innovus> floorPlan -su 1.0 0.70 4.0 4.0 4.0 4.0
+ innovus> floorPlan -r 1.0 0.70 4.0 4.0 4.0 4.0
  innovus> globalNetConnect VDD -type pgpin -pin VDD -inst * -verbose
  innovus> globalNetConnect VSS -type pgpin -pin VSS -inst * -verbose
  innovus> sroute -nets {VDD VSS}
