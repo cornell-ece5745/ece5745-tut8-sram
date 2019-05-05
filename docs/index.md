@@ -816,13 +816,11 @@ If you are using Verilog, you will need to modify `SramVRTL.v` like this:
 
   generate
     if      ( p_data_nbits == 32  && p_num_entries == 256 )
-      SRAM_32x256_1P  sram ( clk, ~t, 1'b0, ~v, i, wd, rd, wben );
+      SRAM_32x256_1P  sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
     else if ( p_data_nbits == 128 && p_num_entries == 256 )
-      SRAM_128x256_1P sram ( clk, ~t, 1'b0, ~v, i, wd, rd, wben );
-
-    // Add the following to choose new SRAM configuration RTL model
+      SRAM_128x256_1P sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
     else if ( p_data_nbits == 64 && p_num_entries == 64 )
-      SRAM_64x64_1P sram ( clk, ~t, 1'b0, ~v, i, wd, rd, wben );
+      SRAM_64x64_1P   sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
 
     else
       SramGenericVRTL#(p_data_nbits,p_num_entries) sram

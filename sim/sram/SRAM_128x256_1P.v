@@ -9,15 +9,17 @@
 
 module SRAM_128x256_1P
 (
-  input          CE1,
-  input          WEB1,
-  input          OEB1,
-  input          CSB1,
-  input  [7:0]   A1,
-  input  [127:0] I1,
-  output [127:0] O1,
-  input  [15:0]  WBM1
+  input  logic         CE1,
+  input  logic         WEB1,
+  input  logic         OEB1,
+  input  logic         CSB1,
+  input  logic [7:0]   A1,
+  input  logic [127:0] I1,
+  output logic [127:0] O1,
+  input  logic [15:0]  WBM1
 );
+
+  `ifndef SYNTHESIS
 
   sram_SramGenericVRTL
   #(
@@ -35,6 +37,8 @@ module SRAM_128x256_1P
     .I1   (I1),
     .O1   (O1)
   );
+
+  `endif /* SYNTHESIS */
 
 endmodule
 

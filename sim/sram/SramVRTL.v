@@ -53,9 +53,9 @@ module sram_SramVRTL
 );
 
   // Short hands: we define these short hands below to make the generate
-  // statements look like a table. We also use positional arguments
-  // instead of matching by names.  This breaks our usual coding style
-  // but we did it for aesthetic reasons.
+  // statements a bit more compact. Note that we tried using positional
+  // arguments instead of explicit named port connections, but this
+  // actually didn't work with Synopsys DC for some reason.
 
   logic                     v;
   logic                     t;
@@ -74,9 +74,9 @@ module sram_SramVRTL
 
   generate
     if      ( p_data_nbits == 32  && p_num_entries == 256 )
-      SRAM_32x256_1P  sram ( clk, ~t, 1'b0, ~v, i, wd, rd, wben );
+      SRAM_32x256_1P  sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
     else if ( p_data_nbits == 128 && p_num_entries == 256 )
-      SRAM_128x256_1P sram ( clk, ~t, 1'b0, ~v, i, wd, rd, wben );
+      SRAM_128x256_1P sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
 
     // ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''
     // Choose new SRAM configuration RTL model
