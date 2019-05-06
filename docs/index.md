@@ -815,25 +815,11 @@ If you are using Verilog, you will need to modify `SramVRTL.v` like this:
 ...
 
   generate
-    if      ( p_data_nbits == 32  && p_num_entries == 256 )
-      SRAM_32x256_1P  sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
-    else if ( p_data_nbits == 128 && p_num_entries == 256 )
-      SRAM_128x256_1P sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
-    else if ( p_data_nbits == 64 && p_num_entries == 64 )
-      SRAM_64x64_1P   sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
-
+    if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1P  sram (.*);
+    else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1P sram (.*);
+    else if ( p_data_nbits == 64  && p_num_entries == 64  ) SRAM_64x64_1P   sram (.*);
     else
-      SramGenericVRTL#(p_data_nbits,p_num_entries) sram
-        (
-          .CE1  ( clk  ),
-          .WEB1 ( ~t   ),
-          .OEB1 ( 1'b0 ),
-          .CSB1 ( ~v   ),
-          .A1   ( i    ),
-          .I1   ( wd   ),
-          .O1   ( rd   ),
-          .WBM1(  wben )
-        );
+      sram_SramGenericVRTL#(p_data_nbits,p_num_entries) sram (.*);
   endgenerate
 ```
 

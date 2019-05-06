@@ -57,43 +57,35 @@ module sram_SramVRTL
   // arguments instead of explicit named port connections, but this
   // actually didn't work with Synopsys DC for some reason.
 
-  logic                     v;
-  logic                     t;
-  logic [c_addr_nbits-1:0]  i;
-  logic [p_data_nbits-1:0]  wd;
-  logic [p_data_nbits-1:0]  rd;
-  logic [c_data_nbytes-1:0] wben;
+  logic                     CE1;
+  logic                     WEB1;
+  logic                     OEB1;
+  logic                     CSB1;
+  logic [c_addr_nbits-1:0]  A1;
+  logic [p_data_nbits-1:0]  I1;
+  logic [c_data_nbytes-1:0] WBM1;
+  logic [p_data_nbits-1:0]  O1;
 
-  assign v    = port0_val;
-  assign t    = port0_type;
-  assign i    = port0_idx;
-  assign wd   = port0_wdata;
-  assign wben = port0_wben;
+  assign CE1  = clk;
+  assign WEB1 = ~port0_type;
+  assign OEB1 = 1'b0;
+  assign CSB1 = ~port0_val;
+  assign A1   = port0_idx;
+  assign I1   = port0_wdata;
+  assign WBM1 = port0_wben;
 
-  assign port0_rdata = rd;
+  assign port0_rdata = O1;
 
   generate
-    if      ( p_data_nbits == 32  && p_num_entries == 256 )
-      SRAM_32x256_1P  sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
-    else if ( p_data_nbits == 128 && p_num_entries == 256 )
-      SRAM_128x256_1P sram ( .CE1(clk), .WEB1(~t), .OEB1(1'b0), .CSB1(~v), .A1(i), .I1(wd), .O1(rd), .WBM1(wben) );
+    if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1P  sram (.*);
+    else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1P sram (.*);
 
     // ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''
     // Choose new SRAM configuration RTL model
     // '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
     else
-      sram_SramGenericVRTL#(p_data_nbits,p_num_entries) sram
-      (
-        .CE1  ( clk  ),
-        .WEB1 ( ~t   ),
-        .OEB1 ( 1'b0 ),
-        .CSB1 ( ~v   ),
-        .A1   ( i    ),
-        .I1   ( wd   ),
-        .O1   ( rd   ),
-        .WBM1 ( wben )
-      );
+      sram_SramGenericVRTL#(p_data_nbits,p_num_entries) sram (.*);
 
   endgenerate
 
