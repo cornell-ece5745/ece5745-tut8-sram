@@ -52,11 +52,6 @@ module sram_SramVRTL
   input  logic [c_data_nbytes-1:0]  port0_wben
 );
 
-  // Short hands: we define these short hands below to make the generate
-  // statements a bit more compact. Note that we tried using positional
-  // arguments instead of explicit named port connections, but this
-  // actually didn't work with Synopsys DC for some reason.
-
   logic                     CE1;
   logic                     WEB1;
   logic                     OEB1;
