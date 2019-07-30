@@ -87,7 +87,7 @@ configuration file for the OpenRAM memory generator here:
 
 ```
  % cd $TOPDIR/asic-manual/openram-mc
- % more SRAM_64x64_1P.cfg
+ % more SRAM_64x64_1P.py
  word_size = 64
  num_words = 64
  num_banks = 4
@@ -113,14 +113,14 @@ You can use the following command to run the OpenRAM memory generator.
 
 ```
  % cd $TOPDIR/asic-manual/openram-mc
- % openram -v SRAM_64x64_1P.cfg
+ % openram -v SRAM_64x64_1P.py
 ```
 
 It will take a few minutes to generate the SRAM macro. You can see the
 resulting views here:
 
 ```
- % cd $TOPDIR/asic-manual/cati-mc/SRAM_64x64_1P
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
  % ls -1
  SRAM_64x64_1P.v
  SRAM_64x64_1P.sp
