@@ -3,16 +3,16 @@ ECE 5745 Tutorial 8: SRAM Generators
 ==========================================================================
 
  - Author: Christopher Batten
- - Date: March 3, 2019
+ - Date: April 6, 2021
 
 **Table of Contents**
 
  - Introduction
  - OpenRAM Memory Generator
- - CACTI Memory Generator
  - Using SRAMs in RTL Models
  - Manual ASIC Flow with SRAM Macros
  - Automated ASIC Flow with SRAM Macros
+ - Using Verilog RTL Models
 
 Introduction
 --------------------------------------------------------------------------
@@ -34,17 +34,13 @@ complete design which includes a mix of both standard cells and SRAM
 macros.
 
 The tutorial will first describe how to use the open-source OpenRAM
-memory generator to generate various views of an SRAM macro.
-Unfortunately, the OpenRAM memory generator does not currently have
-support for partial writes. In ECE 5745, we need to use macros with
-partial writes, so we have created a different memory generator based on
-the CACTI memory modeling tool. After learning about both the OpenRAM and
-CACTI memory generators, you will see how to use an SRAM in an RTL model,
-how to generate the corresponding SRAM macro, and then how to push a
-design which uses an SRAM macro through the automated ASIC flow. This
-tutorial assumes you have already completed the tutorials on Linux, Git,
-PyMTL, Verilog, the Synopsys/Cadence ASIC tools, and the automated ASIC
-flow.
+memory generator to generate various views of an SRAM macro. You will
+then see how to use an SRAM in an RTL model, how to generate the
+corresponding SRAM macro, and then how to push a design which uses an
+SRAM macro through the manual ASIC flow. Finally, you will see how to use
+PyHFlow to automate this process. This tutorial assumes you have already
+completed the tutorials on Linux, Git, PyMTL, Verilog, the
+Synopsys/Cadence ASIC tools, and the PyHFlow automated ASIC flow.
 
 The following diagram illustrates how the memory generator integrates
 with the four primary tools covered in the previous tutorials. We run the
@@ -60,7 +56,7 @@ directory for the project.
 
 ```
  % source setup-ece5745.sh
- % mkdir $HOME/ece5745
+ % mkdir -p $HOME/ece5745
  % cd $HOME/ece5745
  % git clone git@github.com:cornell-ece5745/ece5745-tut8-sram
  % cd ece5745-tut8-sram
@@ -87,22 +83,33 @@ configuration file for the OpenRAM memory generator here:
 
 ```
  % cd $TOPDIR/asic-manual/openram-mc
- % more SRAM_64x64_1P.py
- word_size = 64
- num_words = 64
- num_banks = 4
- tech_name = "freepdk45"
+ % cat SRAM_32x128_1rw.py
+ num_rw_ports    = 1
+ num_r_ports     = 0
+ num_w_ports     = 0
+
+ word_size       = 32
+ num_words       = 128
+ num_banks       = 1
+ words_per_row   = 4
+
+ tech_name       = "freepdk45"
  process_corners = ["TT"]
- supply_voltages = [ 1.1 ]
- temperatures = [ 25 ]
- output_path = "SRAM_64x64_1P"
- output_name = "SRAM_64x64_1P"
+ supply_voltages = [1.1]
+ temperatures    = [25]
+
+ route_supplies  = True
+ check_lvsdrc    = True
+
+ output_path     = "SRAM_32x128_1rw"
+ output_name     = "SRAM_32x128_1rw"
+ instance_name   = "SRAM_32x128_1rw"
 ```
 
-In this example, we are generating a single-ported SRAM which has 64 rows
-and 64 bits per row for a total capacity of 4096 bits or 512B. This size
-is probably near the cross-over point where you might transition from
-using synthesized memories to SRAM macros. OpenRAM will take this
+In this example, we are generating a single-ported SRAM which has 128
+rows and 32 bits per row for a total capacity of 4096 bits or 512B. This
+size is probably near the cross-over point where you might transition
+from using synthesized memories to SRAM macros. OpenRAM will take this
 configuration file as input and generate many different views of the SRAM
 macro including: schematics (`.sp`), layout (`.gds`), a Verilog
 behavioral model (`.v`), abstract logical, timing, power view (`.lib`),
@@ -113,20 +120,21 @@ You can use the following command to run the OpenRAM memory generator.
 
 ```
  % cd $TOPDIR/asic-manual/openram-mc
- % openram -v SRAM_64x64_1P.py
+ % openram -v SRAM_32x128_1rw.py
 ```
 
-It will take a few minutes to generate the SRAM macro. You can see the
-resulting views here:
+It will take about 6-7 minutes to generate the SRAM macro. You can see
+the resulting views here:
 
 ```
- % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_32x128_1rw
  % ls -1
- SRAM_64x64_1P.v
- SRAM_64x64_1P.sp
- SRAM_64x64_1P.gds
- SRAM_64x64_1P.lef
- SRAM_64x64_1P_TT_1p1V_25C.lib
+ SRAM_32x128_1rw.v
+ SRAM_32x128_1rw.sp
+ SRAM_32x128_1rw.gds
+ SRAM_32x128_1rw.lef
+ SRAM_32x128_1rw_TT_1p1V_25C.lib
+ SRAM_32x128_1rw.html
 ```
 
 You can find more information about the OpenRAM memory generator in this
@@ -137,7 +145,7 @@ recent research paper:
    (https://doi.org/10.1145/2966986.2980098)
 
 The following excerpt from the paper illustrates the microarchitecture
-used in the single-port SRAM macro.
+used in the single-port SRAM macro in the original OpenRAM implementation.
 
 ![](assets/fig/openram-sram-uarch.png)
 
@@ -151,14 +159,21 @@ The functionality of the pins are as follows:
  - `DATA`: read/write data
 
 Notice that there is a single address, and a single read/write data bus.
-This SRAM macro has a single read/write port and only supports executing
-a single transaction at a time. The diagram shows a bank select which is
-used when a single SRAM macro is built out of multiple lower-level
-"physical banks" to produce a more efficient layout. We will see what
-these physical banks look like a little later in the tutorial.
+In the new version of OpenRAM that we are currently using, this has been
+changed to use a separate read data and write data bus. However, this
+SRAM macro still only supports executing a single transaction at a time.
+The diagram shows a bank select which is used when a single SRAM macro is
+built out of multiple lower-level "physical banks" to produce a more
+efficient layout (by means of reducing the length of bitlines and
+wordlines, hence improving delay and energy efficiency). To achieve
+similar results, we instead use a column muxing factor, which allows us
+to read multiple lines and select the data we want via a MUX, hence also
+creating a more efficient layout. We will see what the column muxing
+looks like a little later in the tutorial.
 
 The following excerpt from the paper shows the timing diagram for a read
-and write transaction.
+and write transaction in the old OpenRAM implementation, which for the
+most part holds for the most recent version.
 
 ![](assets/fig/openram-sram-timing.png)
 
@@ -173,12 +188,13 @@ an array of flip-flops which store the address on the rising edge of the
 clock. After the rising edge, the address is decoded to drive the word
 lines and enable the desired row. The read data is driven from the bit
 cell array through the column muxing and into the sense amp array. The
-`OEb` pin is used to determine whether the read data should be driven
+`OEb` pin was used to determine whether the read data should be driven
 onto the data bus. This can enable multiple SRAM macros to be arranged on
 a distributed bus with only one SRAM driving that bus on any given cycle.
-Assuming `OEb` is low (note that `OEb` is active low), then the read data
+The `OEb` pin has since been removed in OpenRAM, and its functionality was
+tied to the `CSb` pin. Assuming `CSb` is low, then the read data
 is driven out the `DATA` pins. Since we set the address _before_ the
-rising edge and the data is valid _after_ the rising edge, this is a
+edge and the data is valid _after_ the edge, this is a
 _synchronous_ read SRAM. Compare this to a register file which often
 provides a _combinational_ read where the address is set and the data is
 valid sometime later during the _same_ cycle. Most SRAM generators
@@ -190,47 +206,62 @@ You can look at the behavioral Verilog produced by the OpenRAM memory
 generator like this:
 
 ```
- % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
- % less SRAM_64x64_1P.v
- module SRAM_64x64_1P(DATA,ADDR,CSb,WEb,OEb,clk);
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_32x128_1rw
+ % less SRAM_32x128_1rw.v
+ module SRAM_32x128_1rw(
+   // Port 0: RW
+   clk0,csb0,web0,addr0,din0,dout0
+ );
 
-   parameter DATA_WIDTH = 64 ;
-   parameter ADDR_WIDTH = 6 ;
-   parameter RAM_DEPTH = 1 << ADDR_WIDTH;
-   parameter DELAY = 3 ;
+   parameter DATA_WIDTH = 32;
+   parameter ADDR_WIDTH = 7;
+   parameter RAM_DEPTH  = 1 << ADDR_WIDTH;
+   // FIXME: This delay is arbitrary.
+   parameter DELAY      = 3;
 
-   inout [DATA_WIDTH-1:0] DATA;
-   input [ADDR_WIDTH-1:0] ADDR;
-   input CSb;             // active low chip select
-   input WEb;             // active low write control
-   input OEb;             // active output enable
-   input clk;             // clock
+   input                   clk0;  // clock
+   input                   csb0;  // active low chip select
+   input                   web0;  // active low write control
+   input  [ADDR_WIDTH-1:0] addr0;
+   input  [DATA_WIDTH-1:0] din0;
+   output [DATA_WIDTH-1:0] dout0;
 
-   reg [DATA_WIDTH-1:0] data_out ;
-   reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];
+   reg                  csb0_reg;
+   reg                  web0_reg;
+   reg [ADDR_WIDTH-1:0] addr0_reg;
+   reg [DATA_WIDTH-1:0] din0_reg;
+   reg [DATA_WIDTH-1:0] dout0;
 
-   // Tri-State Buffer control
-   // output : When WEb = 1, oeb = 0, csb = 0
-   assign DATA = (!CSb && !OEb && WEb) ? data_out : 64'bz;
-
-   // Memory Write Block
-   // Write Operation : When WEb = 0, CSb = 0
-   always @ (posedge clk)
-   begin : MEM_WRITE
-   if ( !CSb && !WEb ) begin
-     mem[ADDR] = DATA;
-     $display($time," Writing %m ABUS=%b DATA=%b",ADDR,DATA);
-     end
+   // All inputs are registers
+   always @(posedge clk0)
+   begin
+     csb0_reg  = csb0;
+     web0_reg  = web0;
+     addr0_reg = addr0;
+     din0_reg  = din0;
+     dout0     = 32'bx;
+     if ( !csb0_reg && web0_reg )
+       $display($time," Reading %m addr0=%b dout0=%b",addr0_reg,mem[addr0_reg]);
+     if ( !csb0_reg && !web0_reg )
+       $display($time," Writing %m addr0=%b din0=%b",addr0_reg,din0_reg);
    end
 
-   // Memory Read Block
-   // Read Operation : When WEb = 1, CSb = 0
-   always @ (posedge clk)
-   begin : MEM_READ
-   if (!CSb && WEb) begin
-     data_out <= #(DELAY) mem[ADDR];
-     $display($time," Reading %m ABUS=%b DATA=%b",ADDR,mem[ADDR]);
-     end
+   reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];
+
+   // Memory Write Block Port 0
+   // Write Operation : When web0 = 0, csb0 = 0
+   always @ (negedge clk0)
+   begin : MEM_WRITE0
+     if ( !csb0_reg && !web0_reg )
+       mem[addr0_reg] = din0_reg;
+   end
+
+   // Memory Read Block Port 0
+   // Read Operation : When web0 = 1, csb0 = 0
+   always @ (negedge clk0)
+   begin : MEM_READ0
+     if (!csb0_reg && web0_reg)
+        dout0 <= #(DELAY) mem[addr0_reg];
    end
 
  endmodule
@@ -238,28 +269,35 @@ generator like this:
 
 This is a simple behavior Verilog model which could be used for RTL
 simulation. If you study this behavioral model you should be able to see
-how it implements the timing diagrams shown above. Again, notice that the
-read operation is modeled using an `always @(posedge clk)` block to
-reflect the fact that this SRAM uses a _sequential_ read.
+the timing diagrams it implements, and the slight variations from the
+original OpenRAM implementation described in the paper. Again, notice
+that the read operation is modeled using an `always @(negedge clk)` block
+to reflect the fact that this SRAM uses a _sequential_ read based on the
+clock.
 
 You can take a look at the generated transistor-level netlist like this:
 
 ```
- % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
- % less -p " cell_6t " SRAM_64x64_1P.sp
- .SUBCKT cell_6t bl br wl vdd gnd
- MM5 net10 net4  vdd   vdd PMOS_VTG W=90n     L=50n
- MM4 net4  net10 vdd   vdd PMOS_VTG W=90n     L=50n
- MM1 net10 net4  gnd   gnd NMOS_VTG W=205.00n L=50n
- MM0 net4  net10 gnd   gnd NMOS_VTG W=205.00n L=50n
- MM3 bl    wl    net10 gnd NMOS_VTG W=135.00n L=50n
- MM2 br    wl    net4  gnd NMOS_VTG W=135.00n L=50n
- .ENDS cell_6t
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_32x128_1rw
+ % less -p " cell_1rw " SRAM_32x128_1rw.sp
+ .SUBCKT cell_1rw bl br wl vdd gnd
+ * Inverter 1
+ MM0 Q_bar Q gnd gnd NMOS_VTG W=205.00n L=50n
+ MM4 Q_bar Q vdd vdd PMOS_VTG W=90n     L=50n
+
+ * Inverter 2
+ MM1 Q Q_bar gnd gnd NMOS_VTG W=205.00n L=50n
+ MM5 Q Q_bar vdd vdd PMOS_VTG W=90n     L=50n
+
+ * Access transistors
+ MM3 bl wl Q gnd NMOS_VTG W=135.00n L=50n
+ MM2 br wl Q_bar gnd NMOS_VTG W=135.00n L=50n
+ .ENDS cell_1rw
 ```
 
 This is showing the netlist for one bitcell in the SRAM. This is a
-classic 6T SRAM bitcell with two cross-coupled inverters (`MM0`, `MM1`,
-`MM4`, `MM5`) and two access transistors (`MM2`, `MM3`). Note that the
+classic 6T SRAM bitcell with two cross-coupled inverters (`MM0`, `MM4`,
+`MM1`, `MM5`) and two access transistors (`MM2`, `MM3`). Note that the
 transistors must be carefully sized to ensure correct operation of an
 SRAM bitcell!
 
@@ -267,8 +305,8 @@ Now let's use Klayout look at the actual layout produced by the OpenRAM
 memory generator.
 
 ```
- % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P
- % klayout -l $ECE5745_STDCELLS/klayout.lyp SRAM_64x64_1P.gds
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_32x128_1rw
+ % klayout -l $ECE5745_STDCELLS/klayout.lyp SRAM_32x128_1rw.gds
 ```
 
 The following figure shows the layout for the SRAM macro. In Klayout, you
@@ -276,22 +314,22 @@ can show/hide layers by double clicking on them on the right panel. You
 can show more of the hierarchy by selecting _Display > Increment
 Hierarchy_ from the menu.
 
-![](assets/fig/openram-sram-64x64-1p.png)
+![](assets/fig/openram-sram-32x128-1rw.png)
 
-Notice how the SRAM is organized into four physical banks. Each physical
-bank has 32 rows and and 32 bits per row. The peripherial logic is shared
-in the middle of the physical banks. Using physical banks helps reduce
-the length of the bitlines and wordlines which improves the delay and
-energy efficiency of the design.
+To explain the circuitry in the SRAM, on the left we have flops for the
+row addresses, which are then fed into a decoder. The decoder activates a
+certain wordline driver, which will then read out the data through the
+circuitry below (with the column muxing and sense amps shown in more
+detail in the following image). Also note that in the above image, the
+circuitry at the bottom are the flops for the read data.
 
-The following figure shows a closer look at a portion of the upper
-right-hand physical bank.
+Notice how at the bottom of the SRAM, above the data flops, we have
+circuitry distributed every four rows of the SRAM. This is the column
+muxing circuitry that we added in our configuration file and mentioned
+previously. The following figure shows a closer look at this column
+muxing circuitry and the sense amps.
 
-![](assets/fig/openram-sram-64x64-1p-corner.png)
-
-The array of bitcells is in the upper right-hand corner, the decoder
-logic is on the left and the sense amp array and write driver array are
-at the bottom.
+![](assets/fig/openram-sram-32x128-1rw-colmux.png)
 
 The following figure shows the layout for a single SRAM bitcell.
 
@@ -305,48 +343,49 @@ the canonical 6T SRAM bitcell transistor-level implementation.
 Let’s look at snippet of the `.lib` file for the SRAM macro.
 
 ```
- % cd $TOPDIR/asic-manual/openram-mc/SRAM_64x64_1P/SRAM_64x64_1P
- % less SRAM_64x64_1P_*.lib
+ % cd $TOPDIR/asic-manual/openram-mc/SRAM_32x128_1rw/SRAM_32x128_1rw
+ % less SRAM_32x128_1rw_TT_1p1V_25C.lib
  ...
- cell (SRAM_64x64_1P) {
-   area : 13267.5016125;
+ cell (SRAM_32x128_1rw) {
    ...
-    bus(ADDR){
-        bus_type       : ADDR;
-        direction      : input;
-        capacitance    : 0.2091;
-        max_transition : 0.04;
-        pin(ADDR[5:0]){
-        timing(){
-            timing_type : setup_rising;
-            related_pin  : "clk";
-            rise_constraint(CONSTRAINT_TABLE) {
-            values("0.009, 0.009, 0.009",\
-                   "0.009, 0.009, 0.009",\
-                   "0.009, 0.009, 0.009");
-            }
-            fall_constraint(CONSTRAINT_TABLE) {
-            values("0.009, 0.009, 0.009",\
-                   "0.009, 0.009, 0.009",\
-                   "0.009, 0.009, 0.009");
-            }
-        }
-        timing(){
-            timing_type : hold_rising;
-            related_pin  : "clk";
-            rise_constraint(CONSTRAINT_TABLE) {
-            values("0.001, 0.001, 0.001",\
-                   "0.001, 0.001, 0.001",\
-                   "0.001, 0.001, 0.001");
-              }
-            fall_constraint(CONSTRAINT_TABLE) {
-            values("0.001, 0.001, 0.001",\
-                   "0.001, 0.001, 0.001",\
-                   "0.001, 0.001, 0.001");
-            }
-        }
-        }
-    }
+   area : 6967.660000000001;
+   ...
+   bus (dout0) {
+     bus_type        : data;
+     direction       : output;
+     max_capacitance : 0.0008364000000000001;
+     min_capacitance : 5.2275000000000003e-05;
+     memory_read() {
+       address : addr0;
+     }
+     pin(dout0[31:0]) {
+       timing(){
+         timing_sense : non_unate;
+         related_pin  : "clk0";
+         timing_type  : falling_edge;
+         cell_rise(CELL_TABLE) {
+           values("0.322, 0.323, 0.323",\
+                  "0.322, 0.323, 0.323",\
+                  "0.322, 0.323, 0.323");
+         }
+         cell_fall(CELL_TABLE) {
+           values("0.322, 0.323, 0.323",\
+                  "0.322, 0.323, 0.323",\
+                  "0.322, 0.323, 0.323");
+         }
+         rise_transition(CELL_TABLE) {
+           values("0.001, 0.001, 0.001",\
+                  "0.001, 0.001, 0.001",\
+                  "0.001, 0.001, 0.001");
+         }
+         fall_transition(CELL_TABLE) {
+           values("0.001, 0.001, 0.001",\
+                  "0.001, 0.001, 0.001",\
+                  "0.001, 0.001, 0.001");
+         }
+       }
+     }
+   }
    ...
  }
 ```
@@ -355,10 +394,11 @@ As with the standard-cell library, the `.lib` includes information about
 the area of the block, the capacitance on all pins, and power of the
 circuit. By default OpenRAM will use analytical models to estimate this
 characterization data which is probably why the timing values are not
-varying within a look-up table. OpenRAM can also use spice simulations to
-estimate this characterization data. These simulations will result in the
-memory compiler taking significantly longer to generate the SRAM macros,
-but will also result in much more accurate characterization data.
+varying too much within a look-up table. OpenRAM can also use SPICE
+simulations to estimate this characterization data. These simulations
+will result in the memory compiler taking significantly longer to
+generate the SRAM macros, but will also result in much more accurate
+characterization data.
 
 The `.lef` file will mostly contain large rectangular blockages which
 mean that the ASIC tools should not route any M1, M2, M3 wires over the
@@ -367,99 +407,17 @@ M2, M3 wires already in the SRAM macro). The `.lef` file also identifies
 where all of the pins are physically located so the ASIC tools can
 correctly connect to the SRAM macro.
 
-Try experimenting with the configuration file to generate other SRAM
-macros.
-
-CACTI Memory Generator
---------------------------------------------------------------------------
-
-While the OpenRAM memory generator is useful for understanding how memory
-generators work in general, the SRAM macros produced by the OpenRAM
-memory generator are less useful in this course since they do not support
-partial writes. So to build SRAMs suitable for use in caches we would
-need to combine many smaller SRAMs, and we would need to carefully write
-only one of these smaller SRAMs for a partial write. Given these issues,
-we will be using a different memory generator based on the CACTI memory
-modeling tool.
-
-The CACTI memory generator is not a "real" memory generator, but instead
-it uses first-order analytical modeling to estimate the area, energy, and
-timing of SRAMs (and other memory array structures). We can "abuse" the
-CACTI modeling tool to serve as a memory generator by taking the area,
-energy, and timing estimates from CACTI and inserting them into carefully
-developed `.v`, `.lib`, and `.lef` templates. Essentially we are fooling
-the ASIC tools into thinking we have a real SRAM macro, when really all
-we have if is a rough first-order estimate of a real SRAM macro. This
-works well enough for teaching, but keep in mind there is no "real"
-layout for these SRAM macros.
-
-The CACTI memory generator also uses a configuration file to specify the
-various parameters for the desired SRAM macro. You can see an example
-configuration file for the CACTI memory generator here:
-
-```
- % cd $TOPDIR/asic-manual/cacti-mc
- % more SRAM_64x64_1P.cfg
- conf:
-  baseName:   SRAM
-  numWords:   64
-  wordLength: 64
-  numRWPorts: 1
-  numRPorts:  0
-  numWPorts:  0
-  technology: 45
-  opCond:     Typical
-  debug:      False
-  noBM:       False
-```
-
-You will only really want to change the `numWords` and the `wordLength`
-parameters. As before, are generating a single-ported SRAM which has 64
-rows and 64 bits per row for a total capacity of 4096 bits or 512B. If
-you want to use a dual-ported SRAM you will need to work with the
-instructors to modify the setup.
-
-You can use the following commands to run the CACTI memory generator.
-
-```
- % cd $TOPDIR/asic-manual/cati-mc
- % cacti-mc SRAM_64x64_1P.cfg
-```
-
-It will take a few minutes to generate the SRAM macro. You can see the
-resulting views here:
-
-```
- % cd $TOPDIR/asic-manual/cati-mc/SRAM_64x64_1P
- % ls -1
- SRAM_64x64_1P.v
- SRAM_64x64_1P.lib
- SRAM_64x64_1P.db
- SRAM_64x64_1P.lef
- SRAM_64x64_1P.mw
-```
-
-Notice there is no real layout nor transistor-level netlist. Instead, the
-CACTI memory generator has produced: a Verilog behavior model; a `.lib`
-file with information area, leakage power, capacitance of each input pin,
-internal power, logical functionality, and timing; a `.db` file which is
-a binary version of the `.lib` file; a `.lef` file which includes
-information on the dimensions of the cell and the location and dimensions
-of both power/ground and signal pins; and a `.mw` file which is a
-Milkyway database representation of the SRAM macro based on the `.lef`.
-
-The CACTI SRAM macros have a similar pin-level interface as the OpenRAM
-SRAM macros with a few exceptions: the `CE` signal is used as the clock;
-there are separate input/output data buses _but_ only one can be used at
-a time since this is a single-ported SRAM; and there is an additional
-`WBM` pin which is used as a write byte mask (i.e., for partial writes).
+**To Do On Your Own:** Try experimenting with the configuration file to
+generate other SRAM macros. For example, try generating an SRAM with the
+same number of rows and bits per row but with a column muxing factor of
+two (i.e., set `words_per_row` to 2).
 
 Using SRAMs in RTL Models
 --------------------------------------------------------------------------
 
 Now that we understand how an SRAM generator works, let's see how to
-actually use an SRAM in your RTL models. We have create a behavioral SRAM
-model in the `sim/sram` subdirectory.
+actually use an SRAM in your RTL models. We have created a behavioral
+SRAM model in the `sim/sram` subdirectory.
 
 ```
  % cd $TOPDIR/sim/sram
@@ -516,7 +474,7 @@ Here we are using Mx to indicate when a transaction goes through M1 and
 M2 in the same cycle because it flows straight through the bypass queue.
 So on cycle 3, the response interface is stalled and as a consequence
 message c must be enqueued into the memory response queue. On cycle 4,
-the response queue is full (`enq_rdy` = 0) so `memreq_rdy` = 0 and
+the response queue is full (`recv_rdy` = 0) so `memreq_rdy` = 0 and
 message e will stall in M0 (i.e., will stall waiting to be accepted by
 the SRAM wrapper). The critical question is what happens to message d? It
 _cannot_ stall in M1 because we cannot stall the SRAM. So basically we
@@ -565,7 +523,7 @@ the PyMTL version:
 
 ```
  % cd $TOPDIR/sim/tut8_sram
- % more SramValRdyPRTL.py
+ % more SramMinionPRTL.py
  from sram import SramRTL
  ...
  s.sram = m = SramRTL( num_bits, num_words )
@@ -575,20 +533,19 @@ And here is the Verilog version:
 
 ```
  % cd $TOPDIR/sim/tut8_sram
- % more SramValRdyVRTL.v
+ % more SramMinionVRTL.v
  `include "sram/SramVRTL.v"
  ...
- sram_SramVRTL#(32,256) sram
- (
-   .clk         (clk),
-   .reset       (reset),
-   .port0_idx   (sram_addr_M0),
-   .port0_type  (sram_wen_M0),
-   .port0_wben  (sram_byte_wen_M0),
-   .port0_val   (sram_en_M0),
-   .port0_wdata (sram_write_data_M0),
-   .port0_rdata (sram_read_data_M1)
- );
+ sram_SramVRTL#(32,128) sram
+  (
+    .clk         (clk),
+    .reset       (reset),
+    .port0_idx   (sram_addr_M0),
+    .port0_type  (sram_wen_M0),
+    .port0_val   (sram_en_M0),
+    .port0_wdata (memreq_msg_data_M0),
+    .port0_rdata (sram_read_data_M1)
+  );
 ```
 
 To use an SRAM in a PyMTL model, simply import `SramRTL`, instantiate the
@@ -602,31 +559,33 @@ We can run a test on the SRAM val/rdy wrapper like this:
 ```
  % mkdir -p $TOPDIR/sim/build
  % cd $TOPDIR/sim/build
- % py.test ../tut8_sram/test/SramValRdyRTL_test.py -k test_generic[random_0_3] -s
+ % pytest ../tut8_sram/test/SramMinionRTL_test.py -k random_0_3 -s
  ...
-  2:
-  3: wr:00:00000000:b1aa20f1ac2c79ec
-  4: wr:01:00000008:eadb7347037714f4  wr:00:0:
-  5: wr:02:00000010:f956c79b184e3089  #
-  6: #                                #
-  7: #                                #
-  8: #                                wr:01:0:
-  9: #                                #
- 10: #                                #
- 11: #                                #
- 12: #                                wr:02:0:
- 13: wr:03:00000018:af99be5f98bb9cf5  .
- 14: wr:04:00000020:57dace845824f57a  wr:03:0:
- 15: wr:05:00000028:567a0f9ff18ff8b2  #
- 16: #                                wr:04:0:
+  3:                           > ( ) > .
+  4: wr:00:00000000:0:55fceed9 > ( ) > .
+  5: wr:01:00000004:0:5bec8a7b > (*) > #
+  6: #                         > (*) > #
+  7: #                         > ( ) > wr:00:0:0:
+  8: #                         > ( ) > #
+  9: #                         > ( ) > #
+ 10: #                         > ( ) > #
+ 11: #                         > ( ) > wr:01:0:0:
+ 12: wr:02:00000008:0:b1aa20f1 > ( ) > .
+ 13: wr:03:0000000c:0:a5b6b6bb > (*) > #
+ 14: #                         > (*) > #
+ 15: #                         > ( ) > wr:02:0:0:
+ 16: #                         > ( ) > #
+ 17: #                         > ( ) > #
+ 18: #                         > ( ) > #
+ 19: #                         > ( ) > wr:03:0:0:
 ```
 
 The first write transaction takes a single cycle to go through the SRAM
-val/rdy wrapper, but then the response interface is not ready on cycles
-5-7. The second and third write transactions are still accepted by the
-SRAM val/rdy wrapper and they will end up in the bypass queue, but the
-fourth write transaction is stalled because the request interface is not
-ready. No transactions are lost.
+val/rdy wrapper (and is held up in the SRAM), but the SRAM response
+interface is not ready on cycles 5-7. The second and third write
+transactions are still accepted by the SRAM val/rdy wrapper and they will
+end up in the bypass queue, but the fourth write transaction is stalled
+because the request interface is not ready. No transactions are lost.
 
 The SRAM module is parameterized to enable initial design space
 exploration, but just because we choose a specific SRAM configuration
@@ -637,14 +596,14 @@ four step process.
 **Step 1: See if SRAM configuration already exists**
 
 The first step is to see if your desired SRAM configuration already
-exists. You can do this by looking at the names of the `.cfg` files in
+exists. You can do this by looking at the names of the `-cfg.py` files in
 the `sim/sram` subdirectory.
 
 ```
  % cd $TOPDIR/sram
- % ls *.cfg
- SRAM_128x256_1P.cfg
- SRAM_32x256_1P.cfg
+ % ls *-cfg.py
+ SRAM_128x256_1rw-cfg.py
+ SRAM_32x256_1rw-cfg.py
 ```
 
 This means there are two SRAM configurations already available. One SRAM
@@ -656,24 +615,33 @@ are done and can skip the remaining steps.
 
 The next step is to create a new SRAM configuration file. You must use a
 very specific naming scheme. An SRAM with `N` words and `M` bits per word
-must be named `SRAM_MxN_1P.cfg`. Create a configuration file named
-`SRAM_64x64_1P.cfg` that we can use in the SRAM val/rdy wrapper. The
+must be named `SRAM_MxN_1rw-cfg.py`. Create a configuration file named
+`SRAM_32x128_1rw-cfg.py` that we can use in the SRAM val/rdy wrapper. The
 configuration file should contain the following contents:
 
 ```
  % cd $TOPDIR/sram
- % more SRAM_64x64_1P.cfg
- conf:
-  baseName:   SRAM
-  wordLength: 64
-  numWords:   64
-  numRWPorts: 1
-  numRPorts:  0
-  numWPorts:  0
-  technology: 45
-  opCond:     Typical
-  debug:      False
-  noBM:       False
+ % more SRAM_32x128_1rw-cfg.py
+ num_rw_ports    = 1
+ num_r_ports     = 0
+ num_w_ports     = 0
+
+ word_size       = 32
+ num_words       = 128
+ num_banks       = 1
+ words_per_row   = 4
+
+ tech_name       = "freepdk45"
+ process_corners = ["TT"]
+ supply_voltages = [1.1]
+ temperatures    = [25]
+
+ route_supplies  = True
+ check_lvsdrc    = True
+
+ output_path     = "SRAM_32x128_1rw"
+ output_name     = "SRAM_32x128_1rw"
+ instance_name   = "SRAM_32x128_1rw"
 ```
 
 **Step 3: Create an SRAM configuration RTL model**
@@ -685,97 +653,107 @@ should use a `.v` filename extension. We have provided a generic SRAM RTL
 model to make it easier to implement the SRAM configuration RTL model.
 The generic PyMTL SRAM RTL model is in `SramGenericPRTL.py` and the
 generic Verilog SRAM RTL model is in `SramGenericVRTL.v`. Go ahead and
-create an SRAM configuration RTL model for the 64x64 configuration that
+create an SRAM configuration RTL model for the 32x128 configuration that
 we used in the SRAM val/rdy wrapper.
 
-Here is what this model should look like if you are using PyMTL:
+Here is what the base SRAM model should look like if you are using PyMTL:
 
 ```python
-from pymtl           import *
-from SramGenericPRTL import SramGenericPRTL
+from pymtl3                         import *
+from pymtl3.passes.backends.verilog import *
+from .SramGenericPRTL               import SramGenericPRTL
 
-class SRAM_64x64_1P( Model ):
+class BaseSRAM1rw( Component ):
 
   # Make sure widths match the .v
 
-  # This is only a behavior model, treated as a black box when translated
-  # to Verilog.
+  def construct( s, data_nbits, num_entries ):
 
-  vblackbox      = True
-  vbb_modulename = "SRAM_64x64_1P"
-  vbb_no_reset   = True
-  vbb_no_clk     = True
-
-  def __init__( s ):
-
-    # clock: in PyMTL simulation it uses implicit .clk port when
+    # clock (in PyMTL simulation it uses implict .clk port when
     # translated to Verilog, actual clock ports should be CE1
 
-    s.CE1  = InPort ( 1  )  # clk
-    s.WEB1 = InPort ( 1  )  # bar( write en )
-    s.OEB1 = InPort ( 1  )  # bar( out en )
-    s.CSB1 = InPort ( 1  )  # bar( whole SRAM en )
-    s.A1   = InPort ( 6  )  # address
-    s.I1   = InPort ( 64 )  # write data
-    s.O1   = OutPort( 64 )  # read data
-    s.WBM1 = InPort ( 8  )  # byte write en
+    s.clk0  = InPort () # clk
+    s.web0  = InPort () # bar( write en )
+    s.csb0  = InPort () # bar( whole SRAM en )
+    s.addr0 = InPort ( clog2(num_entries) ) # address
+    s.din0  = InPort ( data_nbits ) # write data
+    s.dout0 = OutPort( data_nbits ) # read data
+
+    # This is a blackbox that shouldn't be translated
+
+    s.set_metadata( VerilogTranslationPass.no_synthesis,          True )
+    s.set_metadata( VerilogTranslationPass.no_synthesis_no_clk,   True )
+    s.set_metadata( VerilogTranslationPass.no_synthesis_no_reset, True )
+    s.set_metadata( VerilogTranslationPass.explicit_module_name,  f'SRAM_{data_nbits}x{num_entries}_1rw' )
 
     # instantiate a generic sram inside
-    s.sram_generic = SramGenericPRTL( 64, 64 )
 
-    s.connect( s.CE1,  s.sram_generic.CE1  )
-    s.connect( s.WEB1, s.sram_generic.WEB1 )
-    s.connect( s.OEB1, s.sram_generic.OEB1 )
-    s.connect( s.CSB1, s.sram_generic.CSB1 )
-    s.connect( s.A1,   s.sram_generic.A1   )
-    s.connect( s.I1,   s.sram_generic.I1   )
-    s.connect( s.O1,   s.sram_generic.O1   )
-    s.connect( s.WBM1, s.sram_generic.WBM1 )
+    s.sram_generic = m = SramGenericPRTL( data_nbits, num_entries )
+    m.clk0  //= s.clk0
+    m.web0  //= s.web0
+    m.csb0  //= s.csb0
+    m.addr0 //= s.addr0
+    m.din0  //= s.din0
+    m.dout0 //= s.dout0
 ```
 
 Notice how this is simply a wrapper around `SramGenericPRTL` instantiated
-with the desired number of words and bits per word.
+with the desired number of words and bits per word. A specific instance of
+this wrapper can be instantiated as follows:
+
+```python
+from pymtl3                         import *
+from pymtl3.passes.backends.verilog import *
+from .BaseSRAM1rw                   import BaseSRAM1rw
+
+class SRAM_32x128_1rw( BaseSRAM1rw ):
+
+  # Make sure widths match the .v
+
+  def construct( s ):
+    super().construct( 32, 128 )
+```
 
 Here is what this model should look like if you are using Verilog:
 
 ```verilog
-`ifndef SRAM_32x256_1P
-`define SRAM_32x256_1P
+`ifndef SRAM_32x128_1rw
+`define SRAM_32x128_1rw
 
 `include "sram/SramGenericVRTL.v"
 
-module SRAM_32x256_1P
+`ifndef SYNTHESIS
+
+module SRAM_32x128_1rw
 (
-  input         CE1,
-  input         WEB1,
-  input         OEB1,
-  input         CSB1,
-  input  [7:0]  A1,
-  input  [31:0] I1,
-  output [31:0] O1,
-  input  [3:0]  WBM1
+  input  logic        clk0,
+  input  logic        web0,
+  input  logic        csb0,
+  input  logic [7:0]  addr0,
+  input  logic [31:0] din0,
+  output logic [31:0] dout0
 );
 
   sram_SramGenericVRTL
   #(
     .p_data_nbits  (32),
-    .p_num_entries (256)
+    .p_num_entries (128)
   )
   sram_generic
   (
-    .CE1  (CE1),
-    .A1   (A1),
-    .WEB1 (WEB1),
-    .WBM1 (WBM1),
-    .OEB1 (OEB1),
-    .CSB1 (CSB1),
-    .I1   (I1),
-    .O1   (O1)
+    .clk0  (clk0),
+    .addr0 (addr0),
+    .web0  (web0),
+    .csb0  (csb0),
+    .din0  (din0),
+    .dout0 (dout0)
   );
 
 endmodule
 
-`endif /* SRAM_32x256_1P */
+`endif /* SYNTHESIS */
+
+`endif /* SRAM_32x128_1rw */
 ```
 
 Notice how this is simply a wrapper around `SramGenericVRTL` instantiated
@@ -789,35 +767,36 @@ modify `SramPRTL.py` like this:
 
 ```python
 # Add this at the top of the file
-from SRAM_64x64_1P  import SRAM_64x64_1P
+from .SRAM_32x128_1rw  import SRAM_32x128_1rw
 
 ...
 
    if   num_bits == 32 and num_words == 256:
       s.sram = m = SRAM_32x256_1P()
-    elif num_bits == 128 and num_words == 256:
-      s.sram = m = SRAM_128x256_1P()
+      ...
 
-    # Add the following to choose new SRAM configuration RTL model
-    elif num_bits == 64  and num_words == 64:
-      s.sram = m = SRAM_64x64_1P()
+    # Add the following to choose new SRAM configuration RTL model and hook up connections
+    elif data_nbits == 32 and num_entries == 128:
+        s.sram = m = SRAM_32x128_1rw()
+        ...
 
     else:
       s.sram = m = SramGenericPRTL( num_bits, num_words )
+      ...
 ```
 
 If you are using Verilog, you will need to modify `SramVRTL.v` like this:
 
 ```verilog
 // Add this at the top of the file
-`include "sram/SRAM_64x64_1P.v"
+`include "sram/SRAM_32x128_1rw.v"
 
 ...
 
   generate
-    if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1P  sram (.*);
-    else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1P sram (.*);
-    else if ( p_data_nbits == 64  && p_num_entries == 64  ) SRAM_64x64_1P   sram (.*);
+    if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1rw  sram (.*);
+    else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1rw sram (.*);
+    else if ( p_data_nbits == 32  && p_num_entries == 128 ) SRAM_32x128_1rw  sram (.*);
     else
       sram_SramGenericVRTL#(p_data_nbits,p_num_entries) sram (.*);
   endgenerate
@@ -837,40 +816,46 @@ works. We start by adding a simple directed test to the `SramRTL_test.py`
 test script. Here is an example:
 
 ```python
-def test_direct_64x64( dump_vcd, test_verilog ):
-  test_vectors = [ header_str,
-    # val,  type,  wben,       idx,  wdata,              rdata
-    [    1, 1,     0b11111111, 0x00, 0xdeadbeefcafe0123, '?'                ],
-    [    1, 0,     0b00000000, 0x00, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x00, 0x0000000000000000, 0xdeadbeefcafe0123 ],
-    [    1, 1,     0b11111111, 0x3f, 0x0a0b0c0d0e0f0102, '?'                ],
-    [    1, 0,     0b00000000, 0x3f, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x00, 0x0000000000000000, 0x0a0b0c0d0e0f0102 ],
-    [    1, 1,     0b11111111, 0x01, 0xaaaaaaaaaaaaaaaa, '?'                ],
-    [    1, 1,     0b00000011, 0x01, 0x0123cafebeefdead, '?'                ],
-    [    1, 0,     0b00000000, 0x01, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x01, 0x0000000000000000, 0xaaaaaaaaaaaadead ],
-    [    1, 1,     0b00001100, 0x01, 0x0123cafebeefdead, '?'                ],
-    [    1, 0,     0b00000000, 0x01, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x01, 0x0000000000000000, 0xaaaaaaaabeefdead ],
-    [    1, 1,     0b00110000, 0x01, 0x0123cafebeefdead, '?'                ],
-    [    1, 0,     0b00000000, 0x01, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x01, 0x0000000000000000, 0xaaaacafebeefdead ],
-    [    1, 1,     0b11000000, 0x01, 0x0123cafebeefdead, '?'                ],
-    [    1, 0,     0b00000000, 0x01, 0x0000000000000000, '?'                ],
-    [    0, 0,     0b00000000, 0x01, 0x0000000000000000, 0x0123cafebeefdead ],
-  ]
-  run_test_vector_sim( SramRTL(64, 64), test_vectors, dump_vcd, test_verilog )
+def test_direct_32x128( cmdline_opts ):
+  run_test_vector_sim( SramRTL(32, 128), [ header_str,
+    # val type idx  wdata   rdata
+    [ 1,  1,  0x00, 0x00000000, '?'        ], # one at a time
+    [ 1,  0,  0x00, 0x00000000, '?'        ],
+    [ 0,  0,  0x00, 0x00000000, 0x00000000 ],
+    [ 1,  1,  0x00, 0xdeadbeef, '?'        ],
+    [ 1,  0,  0x00, 0x00000000, '?'        ],
+    [ 0,  0,  0x00, 0x00000000, 0xdeadbeef ],
+    [ 1,  1,  0x01, 0xcafecafe, '?'        ],
+    [ 1,  0,  0x01, 0x00000000, '?'        ],
+    [ 0,  0,  0x00, 0x00000000, 0xcafecafe ],
+    [ 1,  1,  0x1f, 0x0a0a0a0a, '?'        ],
+    [ 1,  0,  0x1f, 0x00000000, '?'        ],
+    [ 0,  0,  0x00, 0x00000000, 0x0a0a0a0a ],
+
+    [ 1,  1,  0x1e, 0x0b0b0b0b, '?'        ], # streaming reads
+    [ 1,  0,  0x1e, 0x00000000, '?'        ],
+    [ 1,  0,  0x1f, 0x00000000, 0x0b0b0b0b ],
+    [ 1,  0,  0x01, 0x00000000, 0x0a0a0a0a ],
+    [ 1,  0,  0x00, 0x00000000, 0xcafecafe ],
+    [ 0,  0,  0x00, 0x00000000, 0xdeadbeef ],
+
+    [ 1,  1,  0x1d, 0x0c0c0c0c, '?'        ], # streaming writes/reads
+    [ 1,  0,  0x1d, 0x00000000, '?'        ],
+    [ 1,  1,  0x1c, 0x0d0d0d0d, 0x0c0c0c0c ],
+    [ 1,  0,  0x1c, 0x00000000, '?'        ],
+    [ 1,  1,  0x1b, 0x0e0e0e0e, 0x0d0d0d0d ],
+    [ 1,  0,  0x1b, 0x00000000, '?'        ],
+    [ 0,  0,  0x00, 0x00000000, 0x0e0e0e0e ],
+  ], cmdline_opts )
 ```
 
 This directed test writes a value to a specific word and then reads that
 word to verify the value was written correctly. We test writing the first
-word, the last word, and then partial word writes. We can run the
-directed test like this:
+word, the last word, and other words. We can run the directed test like this:
 
 ```
  % cd $TOPDIR/sim/build
- % py.test ../sram/test/SramRTL_test.py -k test_direct_64x64
+ % pytest ../sram/test/SramRTL_test.py -k test_direct_32x128
 ```
 
 We have included a helper function that simplifies random testing. All
@@ -878,14 +863,14 @@ you need to do is add the configuration to the `sram_configs` variable in
 the test script:
 
 ```
- sram_configs = [ (16, 32), (32, 256), (128, 256), (64,64) ]
+ sram_configs = [ (16, 32), (32, 128), (32, 256), (128, 256) ]
 ```
 
 Then you can run the random test like this:
 
 ```
  % cd $TOPDIR/sim/build
- % py.test ../sram/test/SramRTL_test.py -k test_random[64-64]
+ % pytest ../sram/test/SramRTL_test.py -k test_random[32-128]
 ```
 
 And of course we should run all of the tests to ensure we haven't broken
@@ -893,7 +878,7 @@ anything when adding this new configuration.
 
 ```
  % cd $TOPDIR/sim/build
- % py.test ../sram
+ % pytest ../sram
 ```
 
 Manual ASIC Flow with SRAM Macros
@@ -912,53 +897,41 @@ through the flow.
  % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
  % ls
  ...
- SramValRdyRTL.v
- SramValRdyRTL_blackbox.v
+ SramMinionRTL__pickled.v
 ```
 
-As an aside, the simulator will generate _two_ different Verilog files.
-The first Verilog file is `SramValRdyRTL.v`, and it is a fully functional
-RTL model which is what is actually simulated when use the `--translate`
-command line option. The second Verilog file is
-`SramValRdyRTL_blackbox.v` and it is what we use with the ASIC tools.
-Search for the SRAM module in the blackbox Verilog file:
+As you can see, the simulator will generate a Verilog file
+`SramMinionRTL__pickled.v` which is what we use with the ASIC tools.
+
+The next step is to run the OpenRAM memory generator to generate the
+SRAM macro corresponding to the desired 32x128 configuration.
 
 ```
- % cd $TOPDIR/sim/build
- % less -p
- ...
- `default_nettype none
- module SRAM_64x64_1P
- (
-   input  wire [   5:0] A1,
-   input  wire [   0:0] CE1,
-   input  wire [   0:0] CSB1,
-   input  wire [  63:0] I1,
-   output wire [  63:0] O1,
-   input  wire [   0:0] OEB1,
-   input  wire [   7:0] WBM1,
-   input  wire [   0:0] WEB1
- );
-
- endmodule // SRAM_64x64_1P
- `default_nettype wire
+ % mkdir -p $TOPDIR/asic-manual/openram-mc
+ % cd $TOPDIR/asic-manual/openram-mc
+ % openram -v ../../sim/sram/SRAM_32x128_1rw-cfg.py
+ % cd SRAM_32x128_1rw
+ % mv *.lib *.lef *.gds *.v ..
 ```
 
-Notice that this SRAM module is empty! In other words, in the blackbox
-Verilog file, all SRAMs are implemented as "blackboxes" with no internal
-functionality. If we included the behavioral implementation of the SRAM,
-then Synopsys DC would try to synthesize the SRAM as opposed to using the
-SRAM macro.
-
-The next step is to run the CACTI memory generator to generate the SRAM
-macro corresponding to the desired 64x64 configuration.
+We need to convert the `.lib` file into a `.db` file using the
+Synopsys Library Compiler (LC) tool.
 
 ```
- % rm -rf $TOPDIR/asic-manual/cacti-mc/*
- % cd $TOPDIR/asic-manual/cacti-mc
- % cacti-mc ../../sim/sram/SRAM_64x64_1P.cfg
- % cd SRAM_64x64_1P
- % mv *.lib *.db *.lef *.mw ..
+% cd $TOPDIR/asic-manual/openram-mc
+% cp SRAM_32x128_1rw_TT_1p1V_25C.lib SRAM_32x128_1rw.lib
+% lc_shell
+lc_shell> read_lib SRAM_32x128_1rw.lib
+lc_shell> write_lib SRAM_32x128_1rw_TT_1p1V_25C_lib -format db -output SRAM_32x128_1rw.db
+lc_shell> exit
+```
+
+Check that the `.db` file now exists.
+```
+% cd $TOPDIR/asic-manual/openram-mc
+% ls
+...
+SRAM_32x128_1rw.db
 ```
 
 Now we can use Synopsys DC to synthesize the logic which goes around the
@@ -969,12 +942,12 @@ SRAM macro.
  % cd $TOPDIR/asic-manual/synopsys-dc
  % dc_shell-xg-t
 
- dc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../cacti-mc/SRAM_64x64_1P.db"
- dc_shell> analyze -format sverilog ../../sim/build/SramValRdyRTL_blackbox.v
- dc_shell> elaborate SramValRdyRTL
+ dc_shell> set_app_var target_library "$env(ECE5745_STDCELLS)/stdcells.db ../openram-mc/SRAM_32x128_1rw.db"
+ dc_shell> set_app_var link_library   "* $env(ECE5745_STDCELLS)/stdcells.db ../openram-mc/SRAM_32x128_1rw.db"
+ dc_shell> analyze -format sverilog ../../sim/build/SramMinionRTL__pickled.v
+ dc_shell> elaborate SramMinionRTL
  dc_shell> check_design
- dc_shell> create_clock clk -name ideal_clock1 -period 0.35
+ dc_shell> create_clock clk -name ideal_clock1 -period 1.0
  dc_shell> compile
  dc_shell> write -format verilog -hierarchy -output post-synth.v
  dc_shell> exit
@@ -982,9 +955,8 @@ SRAM macro.
 
 We are basically using the same steps we used in the Synopsys/Cadence
 ASIC tool tutorial. Notice how we must point Synopsys DC to the `.db`
-file generated by the CACTI memory generator so Synopsys DC knows the
-abstract logical, timing, power view of the SRAM. Also notice how we are
-pointing Synopsys DC to the blackbox Verilog.
+file generated by OpenRAM so Synopsys DC knows the abstract logical,
+timing, power view of the SRAM.
 
 If you look for the SRAM module in the synthesized gate-level netlist,
 you will see that it is referenced but not declared. This is what we
@@ -1007,15 +979,15 @@ separate from the other tools.
 ```
 
 As in the Synopsys/Cadence ASIC tool tutorial, we need to create two
-files before starting Cadence Innovus. Use Geany or your favorite text
-editor to create a file named `constraints.sdc`in
+files before starting Cadence Innovus. Use your favorite text editor to
+create a file named `constraints.sdc`in
 `$TOPDIR/asic-manual/cadence-innovus` with the following content:
 
 ```
- create_clock clk -name ideal_clock -period 0.35
+ create_clock clk -name ideal_clock -period 1.0
 ```
 
-Now use Geany or your favorite text editor to create a file named
+Now use your favorite text editor to create a file named
 `setup-timing.tcl` in `$TOPDIR/asic-manual/cadence-innovus` with the
 following content:
 
@@ -1025,7 +997,7 @@ following content:
     -T 25
 
  create_library_set -name libs_typical \
-    -timing [list "$env(ECE5745_STDCELLS)/stdcells.lib" "../cacti-mc/SRAM_64x64_1P.lib"]
+    -timing [list "$env(ECE5745_STDCELLS)/stdcells.lib" "../openram-mc/SRAM_32x128_1rw.lib"]
 
  create_delay_corner -name delay_default \
     -early_library_set libs_typical \
@@ -1046,23 +1018,23 @@ following content:
 
 This is very similar to the steps we used in the Synopsys/Cadence ASIC
 tool tutorial, except that we have to include the `.lib` file generated
-by the CACTI memory generator. Now let's start Cadence Innovus, load in
-the design, and complete the power routing just as in the
-Synopsys/Cadence ASIC tool tutorial.
+by OpenRAM. Now let's start Cadence Innovus, load in the design, and
+complete the power routing just as in the Synopsys/Cadence ASIC tool
+tutorial.
 
 ```
  % cd $TOPDIR/asic-manual/cadence-innovus
  % innovus -64
  innovus> set init_mmmc_file "setup-timing.tcl"
  innovus> set init_verilog   "../synopsys-dc/post-synth.v"
- innovus> set init_top_cell  "SramValRdyRTL"
+ innovus> set init_top_cell  "SramMinionRTL"
  innovus> set init_lef_file  "$env(ECE5745_STDCELLS)/rtk-tech.lef \
                               $env(ECE5745_STDCELLS)/stdcells.lef \
-                              ../cacti-mc/SRAM_64x64_1P.lef"
+                              ../openram-mc/SRAM_32x128_1rw.lef"
  innovus> set init_gnd_net   "VSS"
  innovus> set init_pwr_net   "VDD"
  innovus> init_design
- innovus> floorPlan -r 1.0 0.70 4.0 4.0 4.0 4.0
+ innovus> floorPlan -r 0.60 0.65 4.0 4.0 4.0 4.0
  innovus> globalNetConnect VDD -type pgpin -pin VDD -inst * -verbose
  innovus> globalNetConnect VSS -type pgpin -pin VSS -inst * -verbose
  innovus> sroute -nets {VDD VSS}
@@ -1077,8 +1049,8 @@ Synopsys/Cadence ASIC tool tutorial.
            -width 0.4 -spacing 0.5 -set_to_set_distance 5 -start 0.5
 ```
 
-The following screen capture illustrates what you should see: a square
-floorplan with a power grid.
+The following screen capture illustrates what you should see: a
+rectangular floorplan with a power grid.
 
 ![](assets/fig/cadence-innovus-1.png)
 
@@ -1092,44 +1064,177 @@ signal routing and add filler cells.
  innovus> routeDesign
  innovus> setFillerMode -corePrefix FILL -core "FILLCELL_X4 FILLCELL_X2 FILLCELL_X1"
  innovus> addFiller
+ innovus> report_timing
+ innovus> streamOut post-par.gds \
+          -merge "$env(ECE5745_STDCELLS)/stdcells.gds \
+                  ../openram-mc/SRAM_32x128_1rw.gds" \
+          -mapFile "$env(ECE5745_STDCELLS)/rtk-stream-out.map"
 ```
 
 The following screen capture illustrates what you should see. The SRAM
-macro is the large rectangle on the right-hand size of the floorplan. The
+macro is the large rectangle in the center of the floorplan. The
 power grid has been hidden to make it easier to see the SRAM macro.
 
 ![](assets/fig/cadence-innovus-2.png)
 
-Cadence Innovus automatically placed the SRAM macro on the right and then
-arranged the standard cells in rows to the left of the SRAM macro. The
-SRAM macro pins are all on the bottom. The tool has automatically routed
-all of the signals between the standard cells and these SRAM macro pins.
-The following screen capture shows a closer look at this signal routing.
+Cadence Innovus automatically placed the SRAM macro in the center and then
+arranged the standard cells in rows around the SRAM macro. The tool has
+automatically routed all of the signals between the standard cells and
+the SRAM macro pins. The following screen capture shows a closer look
+at some signal routing.
 
 ![](assets/fig/cadence-innovus-3.png)
 
 Notice how Cadence Innovus has used larger wires on higher metal layers
 to do some of the global routing to and from the SRAM macro. The
 following screen capture shows using _Windows > Workspaces > Design
-Browser + Physical_ to highlight two parts of the design. The
-standard-cells in the memory response queue are highlighted in red, and
-the read data bus which connects the SRAM macro to this memory response
-queue is highlighted in yellow.
+Browser + Physical_ to highlight the memory response queue in red.
 
 ![](assets/fig/cadence-innovus-4.png)
 
-This should make it more clear how the tool routes this data bus between
-the standard cells and the SRAM macro pins. Recall that the only logic in
-the SRAM val/rdy wrapper besides the SRAM macro is an input register for
-the memory request and the memory response queue. The memory response
-queue has two entries and each entry is 110 bits for a total storage of
-about 220 bits. The SRAM macro includes 64 entries, each of which is 64
-bits for a total storage of 4096 bits. From the amoeba plot we can see
-that the memory response queue is similar in size to the SRAM macro even
-though the SRAM macro can store 18x more data! This clearly illustrates
-the benefit of using an SRAM generator. We are able to generate much
-denser memories, but also note that the SRAM macro has higher latency (a
-full clock cycle vs. less than a cycle for the memory response queue) and
-has lower throughput (a single port vs. a separate read and write port
-for the memory response queue).
+Let's go ahead and exit Innovus.
+
+```
+ innovus> exit
+```
+
+And now we can use Klayout to look at the final integrated layout.
+
+```
+ % cd $TOPDIR/asic-manual/cadence-innovus
+ % klayout -l $ECE5745_STDCELLS/klayout.lyp post-par.gds
+```
+
+The following shows a portion of the final layout. We can see the SRAM
+bitcell array in the upper right-hand corner along with the SRAM address
+decoder and SRAM column muxing and sense amps. We can also see the
+standard-cells used for address logic on the left where they connect to
+the address pins of the SRAM, and the standard-cells used for the
+response queue at the bottom where they connect to the data pins of the
+SRAM.
+
+![](assets/fig/final-layout.png)
+
+Automated ASIC Flow with SRAM Macros
+--------------------------------------------------------------------------
+
+Obviously entering commands manually for each tool is very tedious and
+error prone. We can use PyHFlow to automate the process of using OpenRAM
+and then pushing designs through the flow that use SRAMs. The first step
+is to make sure we have used the simulator to generate the Verilog and
+VCD file that we want to use with the ASIC flow.
+
+```
+ % cd $TOPDIR/sim/build
+ % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
+ % ls
+ ...
+ SramMinionRTL__pickled.v
+ sram-rtl-random.verilator1.vcd
+```
+
+We have provided a `flow.py` script that you can use. So all we need to
+do is create a build directory and then use PyHFlow to configure the
+flow.
+
+```
+ % mkdir -p $TOPDIR/asic/build-tut8-sram
+ % cd $TOPDIR/asic/build-tut8-sram
+ % pyhflow configure ../flow_tut8_sram.py
+ % pyhflow info block
+
+  - step: block
+    - metadata:
+      - clk_period: 2.0
+      - input_delay_ratio: 0.2
+      - output_delay_ratio: 0.1
+      - top_name: SramMinionRTL
+      - vcd_files: ['sram-rtl-random.verilator1.vcd']
+
+ % pyhflow info memgen
+
+  - step: memgen
+    - metadata:
+      - inst_name: SRAM_32x128_1rw
+      - num_words: 128
+      - word_size: 32
+      - words_per_row: 4
+
+ % pyhflow visualize
+```
+
+The PyHFlow `visualize` command will generate a PDF that visualizes the
+configured flow. Here is what the flow looks like for this tutorial:
+
+![](assets/fig/pyhflow-visualize.png)
+
+We can see a new `memgen` step which will use OpenRAM to create an SRAM
+which is then used as an input to the `synth` and `pnr` steps. Now that
+we have the flow configured we can actually run each step:
+
+```
+ % cd $TOPDIR/asic/build-tut8-sram
+ % pyhflow run memgen
+ % pyhflow run synth
+ % pyhflow run pnr
+ % pyhflow run pwr
+ % pyhflow run summary
+```
+
+Or of course we can also do all of this with one command:
+
+```
+ % cd $TOPDIR/asic/build-tut8-sram
+ % pyhflow run
+```
+
+And then we can open up the results in Cadence Innovus.
+
+```
+ % cd $TOPDIR/asic/build-tut8-sram/pnr
+ % innovus -64
+ innovus> source save.enc
+```
+
+You should see a placed-and-routed design very similar to what we
+produced using the manual flow.
+
+Using Verilog RTL Models
+--------------------------------------------------------------------------
+
+Students are of course welcome to use Verilog instead of PyMTL3 to design
+their RTL models. To experiment with Verilog SRAMs, change `rtl_language`
+in `SramMinionRTL` to `verilog`. Then following commands will run all of
+the tests on the _Verilog_ implementation of the SRAM val/rdy wrapper:
+
+```
+ % rm -rf $TOPDIR/sim/build
+ % mkdir -p $TOPDIR/sim/build
+ % cd $TOPDIR/sim/build
+ % pytest ../tut8_sram
+```
+
+We can run the SRAM simulator, but now we will be running it using the
+_Verilog_ implementation of the SRAM val/rdy wrapper:
+
+```
+ % cd $TOPDIR/sim/build
+ % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
+ % ls
+ ...
+ SramMinionRTL__pickled.v
+ sram-rtl-random.verilator1.vcd
+```
+
+Now we can use the manual ASIC flow steps, or we can also just use
+PyHFlow to push the Verilog version of the val/rdy wrapper through the
+flow.
+
+```
+ % rm -rf $TOPDIR/asic/build-tut8-sram
+ % mkdir -p $TOPDIR/asic/build-tut8-sram
+ % cd $TOPDIR/asic/build-tut8-sram
+ % pyhflow configure ../flow_tut8_sram.py
+ % pyhflow run
+```
 

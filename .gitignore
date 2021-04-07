@@ -16,6 +16,7 @@ __pycache__/
 .DS_Store
 .cache/
 *~
+*.*.swp
 
 asic/dc-syn/current-dc
 

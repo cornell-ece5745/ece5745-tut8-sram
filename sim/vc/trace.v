@@ -199,18 +199,18 @@ module vc_Trace
       len1 = len1 + 1;
     end
 
-    if ( rdy && val ) begin
+    if ( val & rdy ) begin
       append_str( trace, str );
     end
     else if ( rdy && !val ) begin
       append_chars( trace, " ", len1 );
     end
-    else if ( !rdy && val ) begin
-      append_str( trace, "#" );
-      append_chars( trace, " ", len1-1 );
-    end
     else if ( !rdy && !val ) begin
       append_str( trace, "." );
+      append_chars( trace, " ", len1-1 );
+    end
+    else if ( !rdy && val ) begin
+      append_str( trace, "#" );
       append_chars( trace, " ", len1-1 );
     end
     else begin

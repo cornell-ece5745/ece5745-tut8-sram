@@ -2,5 +2,5 @@
 # sram
 #=========================================================================
 
-from SramRTL import SramRTL
+from .SramRTL import SramRTL
 

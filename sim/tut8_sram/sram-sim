@@ -16,8 +16,6 @@
 # Date   : February 5, 2015
 #
 
-from __future__ import print_function
-
 # Hack to add project root to python path
 
 import os
@@ -25,7 +23,7 @@ import sys
 
 sim_dir = os.path.dirname( os.path.abspath( __file__ ) )
 while sim_dir:
-  if os.path.exists( sim_dir + os.path.sep + ".pymtl-python-path" ):
+  if os.path.exists( sim_dir + os.path.sep + "pymtl.ini" ):
     sys.path.insert(0,sim_dir)
     break
   sim_dir = os.path.dirname(sim_dir)
@@ -34,10 +32,12 @@ import argparse
 import re
 import random
 
-from random                  import randint
-from pymtl                   import *
-from SramValRdyRTL           import SramValRdyRTL
-from test.SramValRdyRTL_test import random_msgs, allN_msgs, TestHarness
+from pymtl3                                        import *
+from pymtl3.stdlib.test_utils                      import config_model_with_cmdline_opts
+from pymtl3.passes.backends.verilog                import VerilogPlaceholderPass
+
+from tut8_sram.SramMinionRTL                       import SramMinionRTL
+from tut8_sram.test.SramMinionRTL_test             import random_msgs, allN_msgs, TestHarness
 
 #-------------------------------------------------------------------------
 # Command line processing
@@ -70,6 +70,7 @@ def parse_cmdline():
   p.add_argument( "--stats",     action="store_true" )
   p.add_argument( "--translate", action="store_true" )
   p.add_argument( "--dump-vcd",  action="store_true" )
+  p.add_argument( "--dump-vtb",  action="store_true" )
 
   opts = p.parse_args()
   if opts.help: p.error()
@@ -84,55 +85,70 @@ def main():
 
   # Create input datasets
 
-  nmsgs = 150
-  msgs = None
+  inputs = None
 
   if   opts.input == "random":
-    msgs = random_msgs( base_addr=0x0, num_msgs=nmsgs )
+    inputs = random_msgs()
   elif opts.input == "allzero":
-    msgs = allN_msgs( num=0x0, base_addr=0x0, num_msgs=nmsgs )
+    inputs = allN_msgs( num=0x0 )
   elif opts.input == "allone":
-    msgs = allN_msgs( num=0xffffffffffffffff, base_addr=0x0, num_msgs=nmsgs )
+    inputs = allN_msgs( num=0xffffffffffffffff )
 
   # Instantiate the model
 
   model_impl_dict = {
-    'rtl'   : SramValRdyRTL,
+    'rtl' : SramMinionRTL,
   }
 
   model = model_impl_dict[ opts.impl ]
 
-  # VCD dumping
+  # Create VCD filename, translate cmdline opts
 
-  dump_vcd = ""
-  if opts.dump_vcd:
-    dump_vcd = "sram-" + opts.impl + "-" + opts.input + ".vcd"
+  cmdline_opts = {
+    'dump_vcd': f"sram-{opts.impl}-{opts.input}" if opts.dump_vcd else '',
+    'dump_vtb': f"sram-{opts.impl}-{opts.input}" if opts.dump_vtb else '',
+    'test_verilog': 'zeros' if opts.translate else '',
+  }
 
-  # Translation
-  test_verilog = False
-  if opts.translate:
-    if opts.impl.startswith("rtl"):
-      test_verilog = True
-    else:
-      print("\n ERROR: --translate only works with RTL models \n")
-      exit(1)
+  # Create test harness (we can reuse the harness from unit testing)
 
-  harness = TestHarness( msgs[::2], msgs[1::2],
-                         0, 0,
-                         model, dump_vcd, test_verilog )
+  th = TestHarness( model_impl_dict[ opts.impl ]() )
 
-  # Eleborate model and create simulator
+  th.set_param("top.src.construct",  msgs=inputs[::2]  )
+  th.set_param("top.sink.construct", msgs=inputs[1::2] )
 
-  harness.elaborate()
-  sim = SimulationTool( harness )
-  sim.reset()
+  # Configure the test harness component
 
-  # Tick simulator until evaluation is finished
+  config_model_with_cmdline_opts( th, cmdline_opts, ['sram'] )
 
-  while not harness.done():
+  # Apply necessary passes
+
+  # Create a simulator
+
+  th.apply( DefaultPassGroup( linetrace=opts.trace ) )
+
+  # Reset test harness
+
+  th.sim_reset()
+
+  # 2 cycles to reset
+
+  ncycles = 2
+
+  # Run simulation
+
+  while not th.done():
     if opts.trace:
-      sim.print_line_trace()
-    sim.cycle()
+      th.print_line_trace()
+
+    th.sim_tick()
+    ncycles += 1
+
+  # Extra ticks to make VCD easier to read
+
+  th.sim_tick()
+  th.sim_tick()
+  th.sim_tick()
 
 main()
 

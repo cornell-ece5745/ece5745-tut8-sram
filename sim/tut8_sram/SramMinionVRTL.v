@@ -1,5 +1,5 @@
 //========================================================================
-// SRAM Wrapper: 32 bits/word, 256 words
+// SRAM Wrapper: 32 bits/word, 128 words
 //========================================================================
 // This is a simple val/rdy wrapper around an SRAM that is supposed to be
 // generated using the CACTI-based memory compiler. Note that the SRAM is
@@ -80,8 +80,8 @@
 // you still don't have anywhere to put the message currently in M1.
 //
 
-`ifndef TUT8_SRAM_SRAM_VAL_RDY_V
-`define TUT8_SRAM_SRAM_VAL_RDY_V
+`ifndef TUT8_SRAM_MINION_VRTL_V
+`define TUT8_SRAM_MINION_VRTL_V
 
 `include "vc/mem-msgs.v"
 `include "vc/queues.v"
@@ -90,22 +90,22 @@
 
 `include "sram/SramVRTL.v"
 
-module sram_SramValRdyVRTL
+module tut8_sram_SramMinionVRTL
 (
   input  logic         clk,
   input  logic         reset,
 
   // Memory request port interface
 
-  input  logic         memreq_val,
-  output logic         memreq_rdy,
-  input  mem_req_8B_t  memreq_msg,
+  input  logic         minion_req_val,
+  output logic         minion_req_rdy,
+  input  mem_req_4B_t  minion_req_msg,
 
   // Memory response port interface
 
-  output logic         memresp_val,
-  input  logic         memresp_rdy,
-  output mem_resp_8B_t memresp_msg
+  output logic         minion_resp_val,
+  input  logic         minion_resp_rdy,
+  output mem_resp_4B_t minion_resp_msg
 );
 
   //----------------------------------------------------------------------
@@ -127,42 +127,41 @@ module sram_SramValRdyVRTL
   logic [7:0]   memreq_msg_opaque_M0;
   logic [31:0]  memreq_msg_addr_M0;
   logic [2:0]   memreq_msg_len_M0;
-  logic [63:0]  memreq_msg_data_M0;
+  logic [31:0]  memreq_msg_data_M0;
 
-  assign memreq_msg_type_M0   = memreq_msg.type_;
-  assign memreq_msg_opaque_M0 = memreq_msg.opaque;
-  assign memreq_msg_addr_M0   = memreq_msg.addr;
-  assign memreq_msg_len_M0    = memreq_msg.len;
-  assign memreq_msg_data_M0   = memreq_msg.data;
+  assign memreq_msg_type_M0   = minion_req_msg.type_;
+  assign memreq_msg_opaque_M0 = minion_req_msg.opaque;
+  assign memreq_msg_addr_M0   = minion_req_msg.addr;
+  assign memreq_msg_len_M0    = minion_req_msg.len;
+  assign memreq_msg_data_M0   = minion_req_msg.data;
 
   logic memreq_val_M0;
-  assign memreq_val_M0 = memreq_val;
+  assign memreq_val_M0 = minion_req_val;
 
   logic memreq_go;
-  assign memreq_go = memreq_val && memreq_rdy;
+  assign memreq_go = minion_req_val && minion_req_rdy;
 
   // Setup signals for SRAM
 
-  logic [5:0]  sram_addr_M0;
+  logic [6:0]  sram_addr_M0;
   logic        sram_wen_M0;
   logic        sram_oen_M0;
   logic        sram_en_M0;
-  logic [63:0] sram_write_data_M0;
-  logic [63:0] sram_read_data_M1;
+  logic [31:0] sram_write_data_M0;
+  logic [31:0] sram_read_data_M1;
 
-  assign sram_addr_M0 = memreq_msg_addr_M0[8:3];
+  assign sram_addr_M0 = memreq_msg_addr_M0[8:2];
   assign sram_wen_M0  = memreq_val_M0 && (memreq_msg_type_M0 == c_write);
   assign sram_en_M0   = memreq_go;
 
   // Instantiate SRAM
 
-  sram_SramVRTL#(64,64) sram
+  sram_SramVRTL#(32,128) sram
   (
     .clk         (clk),
     .reset       (reset),
     .port0_idx   (sram_addr_M0),
     .port0_type  (sram_wen_M0),
-    .port0_wben  (8'b1111_1111),
     .port0_val   (sram_en_M0),
     .port0_wdata (memreq_msg_data_M0),
     .port0_rdata (sram_read_data_M1)
@@ -200,12 +199,12 @@ module sram_SramValRdyVRTL
 
   // Shift the read data
 
-  logic [63:0] memresp_msg_data_M1;
+  logic [31:0] memresp_msg_data_M1;
   assign memresp_msg_data_M1 = sram_read_data_M1;
 
   // Pack the response message
 
-  mem_resp_8B_t memresp_msg_M1;
+  mem_resp_4B_t memresp_msg_M1;
 
   assign memresp_msg_M1.type_  = memreq_msg_type_M1;
   assign memresp_msg_M1.opaque = memreq_msg_opaque_M1;
@@ -225,18 +224,18 @@ module sram_SramValRdyVRTL
   )
   memresp_queue
   (
-    .clk              (clk),
-    .reset            (reset),
-    .enq_val          (memreq_val_M1),
-    .enq_rdy          (memresp_queue_rdy),
-    .enq_msg          (memresp_msg_M1),
-    .deq_val          (memresp_val),
-    .deq_rdy          (memresp_rdy),
-    .deq_msg          (memresp_msg),
+    .clk               (clk),
+    .reset             (reset),
+    .recv_val          (memreq_val_M1),
+    .recv_rdy          (memresp_queue_rdy),
+    .recv_msg          (memresp_msg_M1),
+    .send_val          (minion_resp_val),
+    .send_rdy          (minion_resp_rdy),
+    .send_msg          (minion_resp_msg),
     .num_free_entries (memresp_queue_num_free_entries_M1)
   );
 
-  assign memreq_rdy = (memresp_queue_num_free_entries_M1 >= 2);
+  assign minion_req_rdy = (memresp_queue_num_free_entries_M1 >= 2);
 
   //----------------------------------------------------------------------
   // General assertions
@@ -247,8 +246,8 @@ module sram_SramValRdyVRTL
   `ifndef SYNTHESIS
   always @( posedge clk ) begin
     if ( !reset ) begin
-      `VC_ASSERT_NOT_X( memreq_val  );
-      `VC_ASSERT_NOT_X( memresp_rdy );
+      `VC_ASSERT_NOT_X( minion_req_val  );
+      `VC_ASSERT_NOT_X( minion_resp_rdy );
     end
   end
   `endif
@@ -259,22 +258,22 @@ module sram_SramValRdyVRTL
 
   `ifndef SYNTHESIS
 
-  vc_MemReqMsg8BTrace memreq_trace
+  vc_MemReqMsg4BTrace memreq_trace
   (
     .clk   (clk),
     .reset (reset),
-    .val   (memreq_val),
-    .rdy   (memreq_rdy),
-    .msg   (memreq_msg)
+    .val   (minion_req_val),
+    .rdy   (minion_req_rdy),
+    .msg   (minion_req_msg)
   );
 
-  vc_MemRespMsg8BTrace memresp_trace
+  vc_MemRespMsg4BTrace memresp_trace
   (
     .clk   (clk),
     .reset (reset),
-    .val   (memresp_val),
-    .rdy   (memresp_rdy),
-    .msg   (memresp_msg)
+    .val   (minion_resp_val),
+    .rdy   (minion_resp_rdy),
+    .msg   (minion_resp_msg)
   );
 
   `VC_TRACE_BEGIN
@@ -289,5 +288,5 @@ module sram_SramValRdyVRTL
 
 endmodule
 
-`endif /* TUT8_SRAM_SRAM_VAL_RDY_V */
+`endif /* TUT8_SRAM_MINION_VRTL_V */
 

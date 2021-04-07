@@ -20,7 +20,7 @@
 //
 // Message Format:
 //
-//    3b    p_opaque_nbits  p_addr_nbits       calc   p_data_nbits
+//    4b    p_opaque_nbits  p_addr_nbits       calc   p_data_nbits
 //  +------+---------------+------------------+------+------------------+
 //  | type | opaque        | addr             | len  | data             |
 //  +------+---------------+------------------+------+------------------+
@@ -35,7 +35,7 @@
 // For example, if the opaque field is 8 bits, the address is 32 bits and
 // the data is also 32 bits, then the message format is as follows:
 //
-//   76  74 73           66 65              34 33  32 31               0
+//   77  74 73           66 65              34 33  32 31               0
 //  +------+---------------+------------------+------+------------------+
 //  | type | opaque        | addr             | len  | data             |
 //  +------+---------------+------------------+------+------------------+
@@ -55,7 +55,7 @@
 //------------------------------------------------------------------------
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [31:0] addr;
   logic [1:0]  len;
@@ -63,7 +63,7 @@ typedef struct packed {
 } mem_req_4B_t;
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [31:0] addr;
   logic [2:0]  len;
@@ -71,7 +71,7 @@ typedef struct packed {
 } mem_req_8B_t;
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [31:0] addr;
   logic [3:0]  len;
@@ -79,15 +79,15 @@ typedef struct packed {
 } mem_req_16B_t;
 
 // memory request type values
-`define VC_MEM_REQ_MSG_TYPE_READ     3'd0
-`define VC_MEM_REQ_MSG_TYPE_WRITE    3'd1
+`define VC_MEM_REQ_MSG_TYPE_READ     4'd0
+`define VC_MEM_REQ_MSG_TYPE_WRITE    4'd1
 
 // write no-refill
-`define VC_MEM_REQ_MSG_TYPE_WRITE_INIT 3'd2
-`define VC_MEM_REQ_MSG_TYPE_AMO_ADD    3'd3
-`define VC_MEM_REQ_MSG_TYPE_AMO_AND    3'd4
-`define VC_MEM_REQ_MSG_TYPE_AMO_OR     3'd5
-`define VC_MEM_REQ_MSG_TYPE_X          3'dx
+`define VC_MEM_REQ_MSG_TYPE_WRITE_INIT 4'd2
+`define VC_MEM_REQ_MSG_TYPE_AMO_ADD    4'd3
+`define VC_MEM_REQ_MSG_TYPE_AMO_AND    4'd4
+`define VC_MEM_REQ_MSG_TYPE_AMO_OR     4'd5
+`define VC_MEM_REQ_MSG_TYPE_X          4'dx
 
 //------------------------------------------------------------------------
 // Memory Request Message: Trace message
@@ -104,7 +104,7 @@ module vc_MemReqMsg4BTrace
   input mem_req_4B_t  msg
 );
 
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
@@ -160,7 +160,7 @@ module vc_MemReqMsg4BTrace
         $sformat( str, "%s:%x:%x:%x", type_str, msg.opaque, msg.addr, msg.data );
     end
 
-    // Trace with val/rdy signals
+    // Trace with en/rdy signals
 
     vc_trace.append_val_rdy_str( trace_str, val, rdy, str );
 
@@ -178,7 +178,7 @@ module vc_MemReqMsg8BTrace
   input mem_req_8B_t  msg
 );
 
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
@@ -249,10 +249,10 @@ module vc_MemReqMsg16BTrace
   input logic         reset,
   input logic         val,
   input logic         rdy,
-  input mem_req_16B_t  msg
+  input mem_req_16B_t msg
 );
 
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
@@ -328,7 +328,7 @@ endmodule
 //
 // Message Format:
 //
-//    3b    p_opaque_nbits   2b    calc   p_data_nbits
+//    4b    p_opaque_nbits   2b    calc   p_data_nbits
 //  +------+---------------+------+------+------------------+
 //  | type | opaque        | test | len  | data             |
 //  +------+---------------+------+------+------------------+
@@ -343,7 +343,7 @@ endmodule
 // For example, if the opaque field is 8 bits and the data is 32 bits,
 // then the message format is as follows:
 //
-//   46  44 43           36 35  34 33  32 31               0
+//   47  44 43           36 35  34 33  32 31               0
 //  +------+---------------+------+------+------------------+
 //  | type | opaque        | test | len  | data             |
 //  +------+---------------+------+------+------------------+
@@ -363,7 +363,7 @@ endmodule
 //------------------------------------------------------------------------
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [1:0]  test;
   logic [1:0]  len;
@@ -371,7 +371,7 @@ typedef struct packed {
 } mem_resp_4B_t;
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [1:0]  test;
   logic [2:0]  len;
@@ -379,7 +379,7 @@ typedef struct packed {
 } mem_resp_8B_t;
 
 typedef struct packed {
-  logic [2:0]  type_;
+  logic [3:0]  type_;
   logic [7:0]  opaque;
   logic [1:0]  test;
   logic [3:0]  len;
@@ -388,15 +388,15 @@ typedef struct packed {
 
 // Values for the type field
 
-`define VC_MEM_RESP_MSG_TYPE_READ     3'd0
-`define VC_MEM_RESP_MSG_TYPE_WRITE    3'd1
+`define VC_MEM_RESP_MSG_TYPE_READ     4'd0
+`define VC_MEM_RESP_MSG_TYPE_WRITE    4'd1
 
 // write no-refill
-`define VC_MEM_RESP_MSG_TYPE_WRITE_INIT 3'd2
-`define VC_MEM_RESP_MSG_TYPE_AMO_ADD    3'd3
-`define VC_MEM_RESP_MSG_TYPE_AMO_AND    3'd4
-`define VC_MEM_RESP_MSG_TYPE_AMO_OR     3'd5
-`define VC_MEM_RESP_MSG_TYPE_X          3'dx
+`define VC_MEM_RESP_MSG_TYPE_WRITE_INIT 4'd2
+`define VC_MEM_RESP_MSG_TYPE_AMO_ADD    4'd3
+`define VC_MEM_RESP_MSG_TYPE_AMO_AND    4'd4
+`define VC_MEM_RESP_MSG_TYPE_AMO_OR     4'd5
+`define VC_MEM_RESP_MSG_TYPE_X          4'dx
 
 //------------------------------------------------------------------------
 // Memory Response Message: Trace message
@@ -414,7 +414,7 @@ module vc_MemRespMsg4BTrace
 );
 
   // unpack message fields -- makes them visible in gtkwave
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
@@ -467,7 +467,7 @@ module vc_MemRespMsg4BTrace
         $sformat( str, "%s:%x:%x", type_str, opaque, data );
     end
 
-    // Trace with val/rdy signals
+    // Trace with en/rdy signals
 
     vc_trace.append_val_rdy_str( trace_str, val, rdy, str );
 
@@ -486,7 +486,7 @@ module vc_MemRespMsg8BTrace
 );
 
   // unpack message fields -- makes them visible in gtkwave
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
@@ -539,7 +539,7 @@ module vc_MemRespMsg8BTrace
         $sformat( str, "%s:%x:%x", type_str, opaque, data );
     end
 
-    // Trace with val/rdy signals
+    // Trace with en/rdy signals
 
     vc_trace.append_val_rdy_str( trace_str, val, rdy, str );
 
@@ -558,7 +558,7 @@ module vc_MemRespMsg16BTrace
 );
 
   // unpack message fields -- makes them visible in gtkwave
-  logic [2:0]   type_;
+  logic [3:0]   type_;
   assign type_  = msg.type_;
   logic [7:0]   opaque;
   assign opaque = msg.opaque;
