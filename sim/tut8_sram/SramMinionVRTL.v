@@ -108,6 +108,9 @@ module tut8_sram_SramMinionVRTL
   output mem_resp_4B_t minion_resp_msg
 );
 
+  mem_resp_4B_t minion_resp_msg_raw; //4-state sim fix
+  assign minion_resp_msg = minion_resp_msg_raw & {48{minion_resp_val}};
+
   //----------------------------------------------------------------------
   // Local parameters
   //----------------------------------------------------------------------
@@ -178,7 +181,7 @@ module tut8_sram_SramMinionVRTL
   logic [2:0]   memreq_msg_type_M1;
   logic [7:0]   memreq_msg_opaque_M1;
   logic [31:0]  memreq_msg_addr_M1;
-  logic [2:0]   memreq_msg_len_M1;
+  logic [1:0]   memreq_msg_len_M1;
 
   always @( posedge clk ) begin
     if (reset)
@@ -208,8 +211,9 @@ module tut8_sram_SramMinionVRTL
 
   assign memresp_msg_M1.type_  = memreq_msg_type_M1;
   assign memresp_msg_M1.opaque = memreq_msg_opaque_M1;
-  assign memresp_msg_M1.len    = memreq_msg_len_M1;
-  assign memresp_msg_M1.data   = memresp_msg_data_M1;
+  assign memresp_msg_M1.test   = 2'b0;
+  assign memresp_msg_M1.len    = ( memreq_msg_type_M1 == 3'b1) ? 4'b0 : memreq_msg_len_M1;   
+  assign memresp_msg_M1.data   = ( memreq_msg_type_M1 == 3'b1) ? 32'b0 : memresp_msg_data_M1; // Connect data to zero on write requests
 
   // Output bypass queue
 
@@ -231,7 +235,7 @@ module tut8_sram_SramMinionVRTL
     .recv_msg          (memresp_msg_M1),
     .send_val          (minion_resp_val),
     .send_rdy          (minion_resp_rdy),
-    .send_msg          (minion_resp_msg),
+    .send_msg          (minion_resp_msg_raw),
     .num_free_entries (memresp_queue_num_free_entries_M1)
   );
 

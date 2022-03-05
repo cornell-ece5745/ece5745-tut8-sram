@@ -24,7 +24,6 @@
 from pymtl3            import *
 from .SramGenericPRTL  import SramGenericPRTL
 from .SRAM_32x256_1rw  import SRAM_32x256_1rw
-from .SRAM_32x128_1rw  import SRAM_32x128_1rw
 from .SRAM_128x256_1rw import SRAM_128x256_1rw
 
 # ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -81,15 +80,6 @@ class SramPRTL( Component ):
 
       if data_nbits == 32 and num_entries == 256:
         s.sram = m = SRAM_32x256_1rw()
-        m.clk0  //= s.clk
-        m.csb0  //= s.port0_val_bar  # csb0 low-active
-        m.web0  //= s.port0_type_bar # web0 low-active
-        m.addr0 //= s.port0_idx
-        m.din0  //= s.port0_wdata
-        m.dout0 //= s.port0_rdata
-
-      elif data_nbits == 32 and num_entries == 128:
-        s.sram = m = SRAM_32x128_1rw()
         m.clk0  //= s.clk
         m.csb0  //= s.port0_val_bar  # csb0 low-active
         m.web0  //= s.port0_type_bar # web0 low-active

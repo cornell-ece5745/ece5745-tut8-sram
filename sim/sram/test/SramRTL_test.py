@@ -6,8 +6,8 @@
 import pytest
 import random
 
-from pymtl3        import *
-from pymtl3.stdlib.test_utils   import run_test_vector_sim
+from pymtl3 import *
+from pymtl3.stdlib.test_utils import run_test_vector_sim
 from sram.SramRTL import SramRTL
 
 #-------------------------------------------------------------------------
@@ -15,7 +15,7 @@ from sram.SramRTL import SramRTL
 #-------------------------------------------------------------------------
 # If you add a new SRAM, make sure add it here to test it.
 
-sram_configs = [ (16, 32), (32, 128), (32, 256), (128, 256) ]
+sram_configs = [ (16, 32), (32, 256), (128, 256) ]
 
 # ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''''''
 # Add (64,64) configuration to sram_configs
@@ -61,42 +61,6 @@ def test_direct_16x32( cmdline_opts ):
     [ 1,  1,   0xb, 0x0e0e, 0x0d0d ],
     [ 1,  0,   0xb, 0x0000, '?'    ],
     [ 0,  0,   0x0, 0x0000, 0x0e0e ],
-  ], cmdline_opts )
-
-#-----------------------------------------------------------------------
-# Directed test for 32x128 SRAM
-#-----------------------------------------------------------------------
-
-def test_direct_32x128( cmdline_opts ):
-  run_test_vector_sim( SramRTL(32, 128), [ header_str,
-    # val type idx  wdata   rdata
-    [ 1,  1,  0x00, 0x00000000, '?'        ], # one at a time
-    [ 1,  0,  0x00, 0x00000000, '?'        ],
-    [ 0,  0,  0x00, 0x00000000, 0x00000000 ],
-    [ 1,  1,  0x00, 0xdeadbeef, '?'        ],
-    [ 1,  0,  0x00, 0x00000000, '?'        ],
-    [ 0,  0,  0x00, 0x00000000, 0xdeadbeef ],
-    [ 1,  1,  0x01, 0xcafecafe, '?'        ],
-    [ 1,  0,  0x01, 0x00000000, '?'        ],
-    [ 0,  0,  0x00, 0x00000000, 0xcafecafe ],
-    [ 1,  1,  0x1f, 0x0a0a0a0a, '?'        ],
-    [ 1,  0,  0x1f, 0x00000000, '?'        ],
-    [ 0,  0,  0x00, 0x00000000, 0x0a0a0a0a ],
-
-    [ 1,  1,  0x1e, 0x0b0b0b0b, '?'        ], # streaming reads
-    [ 1,  0,  0x1e, 0x00000000, '?'        ],
-    [ 1,  0,  0x1f, 0x00000000, 0x0b0b0b0b ],
-    [ 1,  0,  0x01, 0x00000000, 0x0a0a0a0a ],
-    [ 1,  0,  0x00, 0x00000000, 0xcafecafe ],
-    [ 0,  0,  0x00, 0x00000000, 0xdeadbeef ],
-
-    [ 1,  1,  0x1d, 0x0c0c0c0c, '?'        ], # streaming writes/reads
-    [ 1,  0,  0x1d, 0x00000000, '?'        ],
-    [ 1,  1,  0x1c, 0x0d0d0d0d, 0x0c0c0c0c ],
-    [ 1,  0,  0x1c, 0x00000000, '?'        ],
-    [ 1,  1,  0x1b, 0x0e0e0e0e, 0x0d0d0d0d ],
-    [ 1,  0,  0x1b, 0x00000000, '?'        ],
-    [ 0,  0,  0x00, 0x00000000, 0x0e0e0e0e ],
   ], cmdline_opts )
 
 #-----------------------------------------------------------------------
@@ -208,7 +172,7 @@ def test_direct_128x256_mask4( cmdline_opts ):
   ], cmdline_opts )
 
 # ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''''''
-# Add directed test for 64x64 configuration
+# Add directed test for 32x128 configuration
 # '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 #-------------------------------------------------------------------------
@@ -252,5 +216,4 @@ def test_random( cmdline_opts, data_nbits, num_entries):
   run_test_vector_sim( SramRTL(data_nbits, num_entries),
                        gen_rand_tvec(data_nbits, num_entries),
                        cmdline_opts )
-
 

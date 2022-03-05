@@ -26,7 +26,6 @@
 
 `include "sram/SramGenericVRTL.v"
 `include "sram/SRAM_32x256_1rw.v"
-`include "sram/SRAM_32x128_1rw.v"
 `include "sram/SRAM_128x256_1rw.v"
 
 // ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -68,7 +67,6 @@ module sram_SramVRTL
 
   generate
     if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1rw  sram (.*);
-    else if ( p_data_nbits == 32  && p_num_entries == 128 ) SRAM_32x128_1rw  sram (.*);
     else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1rw sram (.*);
 
     // ''' TUTORIAL TASK '''''''''''''''''''''''''''''''''''''''''''''''''

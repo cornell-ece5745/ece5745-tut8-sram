@@ -2,8 +2,8 @@
 ECE 5745 Tutorial 8: SRAM Generators
 ==========================================================================
 
- - Author: Christopher Batten
- - Date: April 6, 2021
+ - Author: Christopher Batten, Jack Brzozowski
+ - Date: March 5, 2021
 
 **Table of Contents**
 
@@ -38,9 +38,9 @@ memory generator to generate various views of an SRAM macro. You will
 then see how to use an SRAM in an RTL model, how to generate the
 corresponding SRAM macro, and then how to push a design which uses an
 SRAM macro through the manual ASIC flow. Finally, you will see how to use
-PyHFlow to automate this process. This tutorial assumes you have already
+mflowgen to automate this process. This tutorial assumes you have already
 completed the tutorials on Linux, Git, PyMTL, Verilog, the
-Synopsys/Cadence ASIC tools, and the PyHFlow automated ASIC flow.
+Synopsys/Cadence ASIC tools, and the mflowgen automated ASIC flow.
 
 The following diagram illustrates how the memory generator integrates
 with the four primary tools covered in the previous tutorials. We run the
@@ -518,8 +518,13 @@ Note, with a pipe queue you still need two elements of buffering. There
 could be a message in the response queue when M2 stalls and then you
 still don't have anywhere to put the message currently in M1.
 
-Take a closer look at the SRAM val/rdy wrapper we provide you. Here is
-the PyMTL version:
+Take a closer look at the SRAM val/rdy wrapper we provide you. You can
+decide to either use PyMTL or Verilog for the tutorial. Simply change
+`rtl_language` in `SramMinionRTL` to `pymtl` or `verilog`.
+
+**NOTE: Only Verilog version is working right now!**
+
+Here is the PyMTL version:
 
 ```
  % cd $TOPDIR/sim/tut8_sram
@@ -582,16 +587,16 @@ We can run a test on the SRAM val/rdy wrapper like this:
 
 The first write transaction takes a single cycle to go through the SRAM
 val/rdy wrapper (and is held up in the SRAM), but the SRAM response
-interface is not ready on cycles 5-7. The second and third write
-transactions are still accepted by the SRAM val/rdy wrapper and they will
-end up in the bypass queue, but the fourth write transaction is stalled
-because the request interface is not ready. No transactions are lost.
+interface is not ready on cycles 5-6. The second write transaction is
+still accepted by the SRAM val/rdy wrapper and will end up in the bypass
+queue, but the third write transaction is stalled because the request
+interface is not ready. No transactions are lost.
 
 The SRAM module is parameterized to enable initial design space
 exploration, but just because we choose a specific SRAM configuration
 does not mean the files we need to create the corresponding SRAM macro
 exist yet. Once we have finalized the SRAM size, we need to go through a
-four step process.
+five step process.
 
 **Step 1: See if SRAM configuration already exists**
 
@@ -656,7 +661,7 @@ generic Verilog SRAM RTL model is in `SramGenericVRTL.v`. Go ahead and
 create an SRAM configuration RTL model for the 32x128 configuration that
 we used in the SRAM val/rdy wrapper.
 
-Here is what the base SRAM model should look like if you are using PyMTL:
+Here is what the base SRAM model looks like if you are using PyMTL:
 
 ```python
 from pymtl3                         import *
@@ -698,8 +703,8 @@ class BaseSRAM1rw( Component ):
 ```
 
 Notice how this is simply a wrapper around `SramGenericPRTL` instantiated
-with the desired number of words and bits per word. A specific instance of
-this wrapper can be instantiated as follows:
+with the desired number of words and bits per word. So if you are using
+PyMTL, create a new file named `SRAM_32x128_1rw.py` as follows:
 
 ```python
 from pymtl3                         import *
@@ -714,7 +719,8 @@ class SRAM_32x128_1rw( BaseSRAM1rw ):
     super().construct( 32, 128 )
 ```
 
-Here is what this model should look like if you are using Verilog:
+If you are using Verilog, create a new file named `SRAM_32x128_1rw.py` as
+follows:
 
 ```verilog
 `ifndef SRAM_32x128_1rw
@@ -729,7 +735,7 @@ module SRAM_32x128_1rw
   input  logic        clk0,
   input  logic        web0,
   input  logic        csb0,
-  input  logic [7:0]  addr0,
+  input  logic [6a:0]  addr0,
   input  logic [31:0] din0,
   output logic [31:0] dout0
 );
@@ -759,7 +765,7 @@ endmodule
 Notice how this is simply a wrapper around `SramGenericVRTL` instantiated
 with the desired number of words and bits per word.
 
-**Step 3: Use new SRAM configuration RTL model in top-level SRAM model**
+**Step 4: Use new SRAM configuration RTL model in top-level SRAM model**
 
 The final step is to modify the top-level SRAM model to select the proper
 SRAM configuration RTL model. If you are using PyMTL, you will need to
@@ -796,7 +802,10 @@ If you are using Verilog, you will need to modify `SramVRTL.v` like this:
   generate
     if      ( p_data_nbits == 32  && p_num_entries == 256 ) SRAM_32x256_1rw  sram (.*);
     else if ( p_data_nbits == 128 && p_num_entries == 256 ) SRAM_128x256_1rw sram (.*);
+
+    // Add the following to choose a new SRAM configuration RTL model
     else if ( p_data_nbits == 32  && p_num_entries == 128 ) SRAM_32x128_1rw  sram (.*);
+
     else
       sram_SramGenericVRTL#(p_data_nbits,p_num_entries) sram (.*);
   endgenerate
@@ -809,7 +818,7 @@ tools will use the _name_ of the SRAM to figure out where to swap in the
 SRAM macro. So we need a explicit module name for every different SRAM
 configuration to enable using SRAM macros in the ASIC tools.
 
-**Step 4: Test new SRAM configuration**
+**Step 5: Test new SRAM configuration**
 
 The final step is to test the new configuration and verify everything
 works. We start by adding a simple directed test to the `SramRTL_test.py`
@@ -860,10 +869,10 @@ word, the last word, and other words. We can run the directed test like this:
 
 We have included a helper function that simplifies random testing. All
 you need to do is add the configuration to the `sram_configs` variable in
-the test script:
+the test script like this:
 
 ```
- sram_configs = [ (16, 32), (32, 128), (32, 256), (128, 256) ]
+ sram_configs = [ (16, 32), (32, 256), (128, 256), (32, 128) ]
 ```
 
 Then you can run the random test like this:
@@ -894,7 +903,7 @@ through the flow.
 
 ```
  % cd $TOPDIR/sim/build
- % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
+ % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vtb
  % ls
  ...
  SramMinionRTL__pickled.v
@@ -918,20 +927,20 @@ We need to convert the `.lib` file into a `.db` file using the
 Synopsys Library Compiler (LC) tool.
 
 ```
-% cd $TOPDIR/asic-manual/openram-mc
-% cp SRAM_32x128_1rw_TT_1p1V_25C.lib SRAM_32x128_1rw.lib
-% lc_shell
-lc_shell> read_lib SRAM_32x128_1rw.lib
-lc_shell> write_lib SRAM_32x128_1rw_TT_1p1V_25C_lib -format db -output SRAM_32x128_1rw.db
-lc_shell> exit
+ % cd $TOPDIR/asic-manual/openram-mc
+ % cp SRAM_32x128_1rw_TT_1p1V_25C.lib SRAM_32x128_1rw.lib
+ % lc_shell
+ lc_shell> read_lib SRAM_32x128_1rw.lib
+ lc_shell> write_lib SRAM_32x128_1rw_TT_1p1V_25C_lib -format db -output SRAM_32x128_1rw.db
+ lc_shell> exit
 ```
 
 Check that the `.db` file now exists.
 ```
-% cd $TOPDIR/asic-manual/openram-mc
-% ls
-...
-SRAM_32x128_1rw.db
+ % cd $TOPDIR/asic-manual/openram-mc
+ % ls
+ ...
+ SRAM_32x128_1rw.db
 ```
 
 Now we can use Synopsys DC to synthesize the logic which goes around the
@@ -947,7 +956,7 @@ SRAM macro.
  dc_shell> analyze -format sverilog ../../sim/build/SramMinionRTL__pickled.v
  dc_shell> elaborate SramMinionRTL
  dc_shell> check_design
- dc_shell> create_clock clk -name ideal_clock1 -period 1.0
+ dc_shell> create_clock clk -name ideal_clock1 -period 1.2
  dc_shell> compile
  dc_shell> write -format verilog -hierarchy -output post-synth.v
  dc_shell> exit
@@ -984,7 +993,7 @@ create a file named `constraints.sdc`in
 `$TOPDIR/asic-manual/cadence-innovus` with the following content:
 
 ```
- create_clock clk -name ideal_clock -period 1.0
+ create_clock clk -name ideal_clock -period 1.2
 ```
 
 Now use your favorite text editor to create a file named
@@ -1056,20 +1065,54 @@ rectangular floorplan with a power grid.
 
 We can now do a simple placement and routing of the standard cells _and_
 the SRAM macro in the floorplan, and then we can finalize the clock and
-signal routing and add filler cells.
+signal routing, add filler cells, and take a look at the timing report.
 
 ```
- innovus> place_design
- innovus> ccopt_design
- innovus> routeDesign
- innovus> setFillerMode -corePrefix FILL -core "FILLCELL_X4 FILLCELL_X2 FILLCELL_X1"
- innovus> addFiller
- innovus> report_timing
- innovus> streamOut post-par.gds \
-          -merge "$env(ECE5745_STDCELLS)/stdcells.gds \
-                  ../openram-mc/SRAM_32x128_1rw.gds" \
-          -mapFile "$env(ECE5745_STDCELLS)/rtk-stream-out.map"
+ place_design
+ ccopt_design
+ routeDesign
+ setFillerMode -corePrefix FILL -core "FILLCELL_X4 FILLCELL_X2 FILLCELL_X1"
+ addFiller
+ report_timing
 ```
+
+Here is what the timing report might look like:
+
+```
+Other End Arrival Time          0.002
+- Setup                         0.034
++ Phase Shift                   1.200
+= Required Time                 1.168
+- Arrival Time                  1.077
+= Slack Time                    0.092
+     Clock Fall Edge                 0.600
+     + Clock Network Latency (Prop)  -0.014
+     = Beginpoint Arrival Time       0.586
+     +--------------------------------------------------------------------------------------------------------------------------+
+     |                      Instance                      |         Arc          |      Cell       | Delay | Arrival | Required |
+     |                                                    |                      |                 |       |  Time   |   Time   |
+     |----------------------------------------------------+----------------------+-----------------+-------+---------+----------|
+     | v/sram/genblk1.sram                                | clk0 v               |                 |       |   0.586 |    0.677 |
+     | v/sram/genblk1.sram                                | clk0 v -> dout0[9] ^ | SRAM_32x128_1rw | 0.325 |   0.910 |    1.002 |
+     | v/FE_OFC22_sram_read_data_M1_22                    | A ^ -> Z ^           | CLKBUF_X1       | 0.041 |   0.952 |    1.043 |
+     | v/U37                                              | A1 ^ -> ZN ^         | AND2_X1         | 0.063 |   1.015 |    1.106 |
+     | v/memresp_queue/genblk1.dpath/qstore/U39           | A ^ -> ZN v          | INV_X1          | 0.028 |   1.043 |    1.134 |
+     | v/memresp_queue/genblk1.dpath/qstore/U177          | A2 v -> ZN ^         | OAI22_X1        | 0.034 |   1.077 |    1.168 |
+     | v/memresp_queue/genblk1.dpath/qstore/rfile_reg[0][ | D ^                  | DFF_X1          | 0.000 |   1.077 |    1.168 |
+     | 22]                                                |                      |                 |       |         |          |
+     +--------------------------------------------------------------------------------------------------------------------------+
+```
+
+You can see how the SRAM is now listed as part of the critical path
+(i.e., `v/sram/genblk1.sram`) and that the clk-to-q propagation delay for
+the read data requires 325ps. Technically, the way the circuits are
+implemented within the SRAM, the clk-to-q propagation delay is relative
+to the _negative_ clock edge (recall the Verilog model which uses a
+`negedge clk`). We can see in the timing report that the starting point
+of the critical path is from the falling clock edge (`v`) which is one
+half-clock cycle after the rising edge (0.6ps) with an adjustment of
+-0.014ns for the clock network latency. Our design is able to meet the
+1.2ns timing constraint.
 
 The following screen capture illustrates what you should see. The SRAM
 macro is the large rectangle in the center of the floorplan. The
@@ -1092,9 +1135,13 @@ Browser + Physical_ to highlight the memory response queue in red.
 
 ![](assets/fig/cadence-innovus-4.png)
 
-Let's go ahead and exit Innovus.
+Let's go stream out the GDS and exit Innovus.
 
 ```
+ innovus> streamOut post-par.gds \
+          -merge "$env(ECE5745_STDCELLS)/stdcells.gds \
+                  ../openram-mc/SRAM_32x128_1rw.gds" \
+          -mapFile "$env(ECE5745_STDCELLS)/rtk-stream-out.map"
  innovus> exit
 ```
 
@@ -1119,122 +1166,237 @@ Automated ASIC Flow with SRAM Macros
 --------------------------------------------------------------------------
 
 Obviously entering commands manually for each tool is very tedious and
-error prone. We can use PyHFlow to automate the process of using OpenRAM
-and then pushing designs through the flow that use SRAMs. The first step
-is to make sure we have used the simulator to generate the Verilog and
-VCD file that we want to use with the ASIC flow.
+error prone. We can use mflowgen to automate the flow process of pushing
+designs through the flow that use SRAMs. Eventually, we hope to include a
+memgen step in mflowgen, but the flow currently assumes that your SRAM's
+are "pre-built". What this means is that the flow assumes there is a
+directory somewhere that has all of the SRAM source files (i.e., `.lib`,
+`.db`, `.lef`, `.gds`, and `.v`). So the first step is to manually
+generate the SRAMs using the OpenRAM memory generator. Then, we need to
+create a `.db` file from the `.lib`, and edit the `.v` file so we can use
+it with gate-level simulation.
+
+Let's start by generating the SRAM source files in our `asic` directory
+and converting the `.lib` to a `.db`.
 
 ```
- % cd $TOPDIR/sim/build
- % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
- % ls
- ...
- SramMinionRTL__pickled.v
- sram-rtl-random.verilator1.vcd
+   % mkdir -p $TOPDIR/asic/openram-mc
+   % cd $TOPDIR/asic/openram-mc
+   % openram -v ../../sim/sram/SRAM_32x128_1rw-cfg.py
+   % cd SRAM_32x128_1rw
+   % mv *.lib *.lef *.gds *.v ..
+
+   % cp SRAM_32x128_1rw_TT_1p1V_25C.lib SRAM_32x128_1rw.lib
+   % lc_shell
+   lc_shell> read_lib SRAM_32x128_1rw.lib
+   lc_shell> write_lib SRAM_32x128_1rw_TT_1p1V_25C_lib -format db -output SRAM_32x128_1rw.db
+   lc_shell> exit
 ```
 
-We have provided a `flow.py` script that you can use. So all we need to
-do is create a build directory and then use PyHFlow to configure the
-flow.
+There are a few issues with the generated SRAM verilog out of the box
+that we'll need to fix, use your text editor of choice to edit the
+`SRAM_32x128_1rw.v` file generated by OpenRAM. We need to change the
+delay parameter to 0, and we need to move `reg [DATA_WIDTH-1:0] mem
+[0:RAM_DEPTH-1];` above the always blocks, so that Synopsys VCS sees the
+declaration of `mem` before it is referenced. We also change the
+`$display` statement to make it a little easier for debugging gate-level
+simulation. Here is what the Verilog file should look like for our
+example SRAM.
+
+```
+// OpenRAM SRAM model
+// Words: 128
+// Word size: 32
+
+module SRAM_32x128_1rw(
+// Port 0: RW
+    clk0,csb0,web0,addr0,din0,dout0
+  );
+
+  parameter DATA_WIDTH = 32 ;
+  parameter ADDR_WIDTH = 7 ;
+  parameter RAM_DEPTH = 1 << ADDR_WIDTH;
+
+  // CHANGE THIS!
+  // Set the delay to zero.
+  parameter DELAY = 0 ;
+
+  input  clk0; // clock
+  input   csb0; // active low chip select
+  input  web0; // active low write control
+  input [ADDR_WIDTH-1:0]  addr0;
+  input [DATA_WIDTH-1:0]  din0;
+  output [DATA_WIDTH-1:0] dout0;
+
+  reg  csb0_reg;
+  reg  web0_reg;
+  reg [ADDR_WIDTH-1:0]  addr0_reg;
+  reg [DATA_WIDTH-1:0]  din0_reg;
+  reg [DATA_WIDTH-1:0]  dout0;
+
+  // CHANGE THIS!
+  // Move this declaration here before it is referenced.
+  reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];
+
+  // All inputs are registers
+  always @(posedge clk0)
+  begin
+    csb0_reg = csb0;
+    web0_reg = web0;
+    addr0_reg = addr0;
+    din0_reg = din0;
+    dout0 = 32'bx;
+    if ( !csb0_reg && web0_reg )
+      $display($time," Reading %m addr0=%b dout0=%x",addr0_reg,mem[addr0_reg]);
+    if ( !csb0_reg && !web0_reg )
+      $display($time," Writing %m addr0=%b din0=%x",addr0_reg,din0_reg);
+  end
+
+  // Memory Write Block Port 0
+  // Write Operation : When web0 = 0, csb0 = 0
+  always @ (negedge clk0)
+  begin : MEM_WRITE0
+    if ( !csb0_reg && !web0_reg )
+        mem[addr0_reg] = din0_reg;
+  end
+
+  // Memory Read Block Port 0
+  // Read Operation : When web0 = 1, csb0 = 0
+  always @ (negedge clk0)
+  begin : MEM_READ0
+    if (!csb0_reg && web0_reg)
+       dout0 <= #(DELAY) mem[addr0_reg];
+  end
+
+endmodule
+```
+
+Now let's take a look at the `asic/tut8-sram/flow.py` file we will use to
+configure mflowgen.
+
+```
+    ...
+    'extra_link_lib_dir' : "f{this_dir}/../../asic/openram-mc",
+
+    'sram_name'          : "v/sram/genblk1_sram",
+    'sram_x_pos'         : '60',
+    'sram_y_pos'         : '50',
+    'sram_orientation'   : 'R0',
+    'sram_top_layer'     : '4', # check
+    'halo_size_um'       : '2',
+    'routing_blk_size_um': '2',
+```
+
+We tell the flow to find SRAM files in the directory we just ran OpenRAM.
+You can also specify the position of each SRAM. Now we are ready to
+create a build directory and then use mflowgen to push the design through
+the flow.
 
 ```
  % mkdir -p $TOPDIR/asic/build-tut8-sram
  % cd $TOPDIR/asic/build-tut8-sram
- % pyhflow configure ../flow_tut8_sram.py
- % pyhflow info block
+ % mflowgen run --design ../tut8-sram
+ % make build-info
 
-  - step: block
-    - metadata:
-      - clk_period: 2.0
-      - input_delay_ratio: 0.2
-      - output_delay_ratio: 0.1
-      - top_name: SramMinionRTL
-      - vcd_files: ['sram-rtl-random.verilator1.vcd']
+ _               _   _       _            _            __
+| |__    _   _  (_) | |   __| |          (_)  _ __    / _|   ___
+| '_ \  | | | | | | | |  / _` |  ______  | | | '_ \  | |_   / _ \
+| |_) | | |_| | | | | | | (_| | |______| | | | | | | |  _| | (_) |
+|_.__/   \__,_| |_| |_|  \__,_|          |_| |_| |_| |_|    \___/
 
- % pyhflow info memgen
 
-  - step: memgen
-    - metadata:
-      - inst_name: SRAM_32x128_1rw
-      - num_words: 128
-      - word_size: 32
-      - words_per_row: 4
+Design name      -- SramMinionRTL
+Clock period     -- 1.2
+ADK              -- freepdk-45nm
+ADK view         -- stdview
 
- % pyhflow visualize
+ % make status
+
+ - build  -> 0   : brgtc5-block-gather
+ - build  -> 1   : build-info
+ - build  -> 2   : freepdk-45nm
+ - build  -> 3   : brg-rtl-4-state-vcssim
+ - build  -> 4   : brg-synopsys-dc-synthesis
+ - build  -> 5   : brg-cadence-innovus-init
+ - build  -> 6   : post-synth-gate-level-simulation
+ - build  -> 7   : brg-cadence-innovus-blocksetup-floorplan
+ - build  -> 8   : post-synth-power-analysis
+ - build  -> 9   : brg-cadence-innovus-blocksetup-power
+ - build  -> 10  : brg-cadence-innovus-pnr
+ - build  -> 11  : brg-cadence-innovus-signoff
+ - build  -> 12  : brg-flow-summary
 ```
 
-The PyHFlow `visualize` command will generate a PDF that visualizes the
-configured flow. Here is what the flow looks like for this tutorial:
-
-![](assets/fig/pyhflow-visualize.png)
-
-We can see a new `memgen` step which will use OpenRAM to create an SRAM
-which is then used as an input to the `synth` and `pnr` steps. Now that
-we have the flow configured we can actually run each step:
+Now we can run the flow for the SramMinionRTL like this:
 
 ```
- % cd $TOPDIR/asic/build-tut8-sram
- % pyhflow run memgen
- % pyhflow run synth
- % pyhflow run pnr
- % pyhflow run pwr
- % pyhflow run summary
+ % make brg-rtl-4-state-vcssim
+ % make brg-synopsys-dc-synthesis
+ % make post-synth-gate-level-simulation
+ % make post-synth-power-analysis
+ % make brg-cadence-innovus-signoff
+ % make brg-flow-summary
 ```
 
-Or of course we can also do all of this with one command:
+or, all at once like this:
 
 ```
- % cd $TOPDIR/asic/build-tut8-sram
- % pyhflow run
+ % make
+ ...
+ ==========================================================================
+   Summary
+ ==========================================================================
+
+ design_name = SramMinionRTL
+
+ area & timing
+   design_area   = 7733.25 um^2
+   stdcells_area = 809.97 um^2
+   macros_area   = 6923.28 um^2
+   chip_area     = 33129.13 um^2
+   core_area     = 11139.016 um^2
+   constraint    = 1.0 ns
+   slack         = 0.593 ns
+   actual_clk    = 1.907 ns
+
+ ==========================================================================
+  4-State Sim Results
+ ==========================================================================
+ [PASSED]: sram-rtl-random
+
+ ==========================================================================
+  Fast-Functional Sim Results
+ ==========================================================================
+ [PASSED]: sram-rtl-random
+
+ ==========================================================================
+  Fast-Functional Power Analysis
+ ==========================================================================
+
+  power & energy
+
+   sram-rtl-random.vcd
+       exec_time = 266 cycles
+       power     = 0.1637 mW
+       energy    = 0.10886 nJ
 ```
 
 And then we can open up the results in Cadence Innovus.
 
 ```
- % cd $TOPDIR/asic/build-tut8-sram/pnr
- % innovus -64
- innovus> source save.enc
+ % cd $TOPDIR/asic/build-tut8-sram/11-brg-cadence-innovus-signoff
+ % innovus -64 -nolog
+ innovus> source checkpoints/design.checkpoint/save.enc
 ```
 
 You should see a placed-and-routed design very similar to what we
-produced using the manual flow.
-
-Using Verilog RTL Models
---------------------------------------------------------------------------
-
-Students are of course welcome to use Verilog instead of PyMTL3 to design
-their RTL models. To experiment with Verilog SRAMs, change `rtl_language`
-in `SramMinionRTL` to `verilog`. Then following commands will run all of
-the tests on the _Verilog_ implementation of the SRAM val/rdy wrapper:
+produced using the manual flow. And we can also of course look at the
+actual layout.
 
 ```
- % rm -rf $TOPDIR/sim/build
- % mkdir -p $TOPDIR/sim/build
- % cd $TOPDIR/sim/build
- % pytest ../tut8_sram
-```
-
-We can run the SRAM simulator, but now we will be running it using the
-_Verilog_ implementation of the SRAM val/rdy wrapper:
-
-```
- % cd $TOPDIR/sim/build
- % ../tut8_sram/sram-sim --impl rtl --input random --translate --dump-vcd
- % ls
- ...
- SramMinionRTL__pickled.v
- sram-rtl-random.verilator1.vcd
-```
-
-Now we can use the manual ASIC flow steps, or we can also just use
-PyHFlow to push the Verilog version of the val/rdy wrapper through the
-flow.
-
-```
- % rm -rf $TOPDIR/asic/build-tut8-sram
- % mkdir -p $TOPDIR/asic/build-tut8-sram
  % cd $TOPDIR/asic/build-tut8-sram
- % pyhflow configure ../flow_tut8_sram.py
- % pyhflow run
+ % klayout -l $ECE5745_STDCELLS/klayout.lyp 11-brg-cadence-innovus-signoff/outputs/design.gds
 ```
+
+![](assets/fig/sram-valrdy-mflowgen-layout.png)
 

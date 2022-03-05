@@ -18,35 +18,6 @@ __pycache__/
 *~
 *.*.swp
 
-asic/dc-syn/current-dc
+asic-manual
+asic/old
 
-asic/icc-par/current-icc
-asic/icc-par/current-iccdp
-asic/icc-par/command.log
-asic/icc-par/icc_output.txt
-
-asic/pt-pwr/current-pt
-
-*.bak
-asic/cacti-mc/SRAM_*/
-asic/cacti-mc/*.db
-asic/cacti-mc/*.lef
-asic/cacti-mc/*.lib
-asic/cacti-mc/*.mw
-asic/dc-syn/alib/
-
-asic/vcs-postsyn/*.vcd
-asic/vcs-postsyn/csrc/
-asic/vcs-postsyn/sdfAnnotateInfo
-asic/vcs-postsyn/simv_*
-asic/vcs-postsyn/testbench.v
-asic/vcs-postsyn/testbench_TOP_v.v
-asic/vcs-postsyn/ucli.key
-
-asic/vcs-postpar/*.vcd
-asic/vcs-postpar/csrc/
-asic/vcs-postpar/sdfAnnotateInfo
-asic/vcs-postpar/simv_*
-asic/vcs-postpar/testbench.v
-asic/vcs-postpar/testbench_TOP_v.v
-asic/vcs-postpar/ucli.key
